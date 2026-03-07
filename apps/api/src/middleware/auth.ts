@@ -9,10 +9,15 @@ type AuthEnv = {
 };
 
 export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
-  // In development, allow a bypass header
-  if (c.env.ENVIRONMENT === 'development') {
-    const devEmail = c.req.header('X-Dev-Email');
-    if (devEmail) {
+  // Dev auth: bypass with header (local dev) or secret-protected header (staging/production testing)
+  const devEmail = c.req.header('X-Dev-Email');
+  if (devEmail) {
+    // In local dev, allow freely; in production, require DEV_AUTH_SECRET
+    const isLocalDev = c.env.ENVIRONMENT === 'development';
+    const devSecret = c.req.header('X-Dev-Secret');
+    const expectedSecret = (c.env as Record<string, unknown>).DEV_AUTH_SECRET as string | undefined;
+
+    if (isLocalDev || (expectedSecret && devSecret === expectedSecret)) {
       const staff = await c.env.DB.prepare(
         'SELECT id, access_email, display_name, role FROM staff_users WHERE access_email = ? AND active = 1',
       )
