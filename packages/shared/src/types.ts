@@ -1,0 +1,99 @@
+import type { BookingStatus, Platform, EventType, StaffRole } from './constants.js';
+
+// --- D1 Row Types ---
+
+export interface RoomRow {
+  id: string;
+  name: string;
+  description: string | null;
+  capacity: number;
+  hourly_rate: number;
+  color_hex: string;
+  active: number; // 0 or 1
+  created_at: string;
+}
+
+export interface BookingRow {
+  id: string;
+  platform: Platform;
+  platform_ref: string | null;
+  status: BookingStatus;
+  room_id: string | null;
+  guest_name: string;
+  guest_email: string | null;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  duration_hours: number | null;
+  guest_count: number | null;
+  total_price: number | null;
+  currency: string | null;
+  notes: string | null;
+  ai_confidence: number | null;
+  staff_notes: string | null;
+  assigned_to: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  platform_actioned: number; // 0 or 1
+  platform_actioned_at: string | null;
+  raw_email_r2_key: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StaffUserRow {
+  id: string;
+  access_email: string;
+  display_name: string;
+  role: StaffRole;
+  active: number; // 0 or 1
+  created_at: string;
+}
+
+export interface BookingEventRow {
+  id: string;
+  booking_id: string;
+  event_type: EventType;
+  actor_id: string | null;
+  payload: string | null; // JSON string
+  created_at: string;
+}
+
+export interface PlatformEmailRuleRow {
+  id: string;
+  platform: Platform;
+  sender_domain: string;
+  subject_pattern: string | null;
+  active: number; // 0 or 1
+}
+
+// --- API Response Types ---
+
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+  };
+  pagination?: {
+    page: number;
+    per_page: number;
+    total: number;
+    total_pages: number;
+  };
+}
+
+export interface BookingDetail extends BookingRow {
+  room?: RoomRow | null;
+  events?: BookingEventRow[];
+  assigned_staff?: StaffUserRow | null;
+}
+
+export interface ConflictInfo {
+  booking_id: string;
+  guest_name: string;
+  start_time: string;
+  end_time: string;
+  status: BookingStatus;
+}

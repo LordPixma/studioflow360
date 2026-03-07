@@ -1,0 +1,28 @@
+name = "studioflow360-email-worker"
+main = "src/index.ts"
+compatibility_date = "2025-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database (for platform_email_rules lookup)
+[[d1_databases]]
+binding = "DB"
+database_name = "studioflow360-db"
+database_id = "3a15f1ed-f131-4187-b7df-9660ab689d8b"
+
+# KV for email deduplication
+[[kv_namespaces]]
+binding = "EMAIL_DEDUP"
+id = "53099f02c28247d3b175eb4092482439"
+
+# R2 for raw email archival
+[[r2_buckets]]
+binding = "EMAIL_ARCHIVE"
+bucket_name = "studioflow360-emails"
+
+# Queue producer
+[[queues.producers]]
+binding = "BOOKING_PARSE_QUEUE"
+queue = "booking-parse-queue"
+
+# Email routing
+# Configured in Cloudflare dashboard to route to this worker

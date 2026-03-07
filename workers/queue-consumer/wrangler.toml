@@ -1,0 +1,26 @@
+name = "studioflow360-queue-consumer"
+main = "src/index.ts"
+compatibility_date = "2025-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "studioflow360-db"
+database_id = "3a15f1ed-f131-4187-b7df-9660ab689d8b"
+
+# R2 for fetching raw emails
+[[r2_buckets]]
+binding = "EMAIL_ARCHIVE"
+bucket_name = "studioflow360-emails"
+
+# Queue consumer
+[[queues.consumers]]
+queue = "booking-parse-queue"
+max_batch_size = 5
+max_retries = 3
+dead_letter_queue = "booking-parse-dlq"
+
+# Workers AI binding
+[ai]
+binding = "AI"

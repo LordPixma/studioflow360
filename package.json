@@ -1,0 +1,24 @@
+{
+  "name": "studioflow360",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare-native studio booking management system",
+  "scripts": {
+    "dev": "echo 'Use individual workspace dev commands'",
+    "build": "pnpm -r build",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write .",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "workerd"
+    ]
+  }
+}

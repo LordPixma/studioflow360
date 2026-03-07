@@ -1,0 +1,26 @@
+{
+  "name": "@studioflow360/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply studioflow360-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply studioflow360-db --remote",
+    "db:seed:local": "wrangler d1 execute studioflow360-db --local --file=../../migrations/seed.sql"
+  },
+  "dependencies": {
+    "@studioflow360/shared": "workspace:*",
+    "hono": "^4.12.5",
+    "@hono/zod-validator": "^0.7.6",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260307.1",
+    "typescript": "^5.8.0",
+    "wrangler": "^4.71.0"
+  }
+}

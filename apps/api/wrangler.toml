@@ -1,0 +1,46 @@
+name = "studioflow360-api"
+main = "src/index.ts"
+compatibility_date = "2025-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "studioflow360-db"
+database_id = "3a15f1ed-f131-4187-b7df-9660ab689d8b"
+migrations_dir = "../../migrations"
+
+# KV Namespaces
+[[kv_namespaces]]
+binding = "SESSION_STORE"
+id = "6cb2a4a5f0a542c99652273474e76b44"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "09d54d9bf159421db0c47c38abcd623f"
+
+# R2 Bucket
+[[r2_buckets]]
+binding = "EMAIL_ARCHIVE"
+bucket_name = "studioflow360-emails"
+
+# Durable Objects
+[durable_objects]
+bindings = [
+  { name = "BOOKING_HUB", class_name = "BookingHub" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["BookingHub"]
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"
+TURNSTILE_SITE_KEY = ""
+
+# Staging environment
+[env.staging]
+name = "studioflow360-api-staging"
+[env.staging.vars]
+ENVIRONMENT = "staging"
