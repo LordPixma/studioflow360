@@ -1,6 +1,6 @@
 import type { ApiResponse } from '@studioflow360/shared';
 
-const API_BASE = import.meta.env.PROD ? 'https://api.studiomgr360.com/api' : '/api';
+const API_BASE = '/api';
 
 class ApiClient {
   private async request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
