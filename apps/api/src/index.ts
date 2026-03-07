@@ -53,6 +53,15 @@ app.get('/api/ws', async (c) => {
   }));
 });
 
+// Internal broadcast endpoint (called by queue-consumer via service binding)
+app.post('/api/internal/broadcast', async (c) => {
+  const body = await c.req.text();
+  const hubId = c.env.BOOKING_HUB.idFromName('global');
+  const hub = c.env.BOOKING_HUB.get(hubId);
+  await hub.fetch(new Request('https://hub/broadcast', { method: 'POST', body }));
+  return c.json({ success: true });
+});
+
 // All other API routes require authentication
 app.use('/api/*', authMiddleware);
 

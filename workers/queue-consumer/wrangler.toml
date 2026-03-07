@@ -21,6 +21,11 @@ max_batch_size = 5
 max_retries = 3
 dead_letter_queue = "booking-parse-dlq"
 
+# Service binding to API worker for WebSocket broadcasts
+[[services]]
+binding = "API_WORKER"
+service = "studioflow360-api"
+
 # Workers AI binding
 [ai]
 binding = "AI"

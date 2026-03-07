@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router';
 import { api } from '../lib/api.ts';
 import { StatusBadge } from '../components/StatusBadge.tsx';
 import { PlatformBadge } from '../components/PlatformBadge.tsx';
+import { useToast } from '../components/Toast.tsx';
+import { useBookingUpdates } from '../context/websocket.tsx';
 import type { BookingDetail, BookingEventRow, RoomRow } from '@studioflow360/shared';
 import { VALID_STATUS_TRANSITIONS, type BookingStatus } from '@studioflow360/shared';
 
@@ -11,28 +13,44 @@ export function BookingDetailPage() {
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [rooms, setRooms] = useState<RoomRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const { toast } = useToast();
 
-  const fetchBooking = () => {
+  const fetchBooking = useCallback(() => {
     if (!id) return;
+    setError(null);
     api.get<BookingDetail>(`/bookings/${id}`).then((res) => {
       if (res.success && res.data) setBooking(res.data);
+      else setError(res.error?.message ?? 'Failed to load booking');
       setLoading(false);
-    });
-  };
+    }).catch(() => { setError('Network error'); setLoading(false); });
+  }, [id]);
 
   useEffect(() => {
     fetchBooking();
     api.get<RoomRow[]>('/rooms').then((res) => {
       if (res.success && res.data) setRooms(res.data);
     });
-  }, [id]);
+  }, [fetchBooking]);
+
+  // Live updates
+  useBookingUpdates(useCallback((event) => {
+    if (event.booking_id === id) {
+      fetchBooking();
+      toast('Booking updated', 'info');
+    }
+  }, [id, fetchBooking, toast]));
 
   const updateStatus = async (newStatus: BookingStatus) => {
     if (!id) return;
+    if (newStatus === 'REJECTED' && !confirm('Are you sure you want to reject this booking?')) return;
+    if (newStatus === 'CANCELLED' && !confirm('Are you sure you want to cancel this booking?')) return;
     setActionLoading(true);
-    await api.patch(`/bookings/${id}/status`, { status: newStatus });
+    const res = await api.patch(`/bookings/${id}/status`, { status: newStatus });
+    if (res.success) toast(`Status updated to ${newStatus}`, 'success');
+    else toast(res.error?.message ?? 'Failed to update status', 'error');
     fetchBooking();
     setActionLoading(false);
   };
@@ -41,8 +59,12 @@ export function BookingDetailPage() {
     if (!id) return;
     setActionLoading(true);
     const res = await api.patch(`/bookings/${id}/room`, { room_id: roomId });
-    if (!res.success && res.error?.code === 'CONFLICT') {
-      alert(`Conflict: ${res.error.message}`);
+    if (res.success) {
+      toast('Room assigned', 'success');
+    } else if (res.error?.code === 'CONFLICT') {
+      toast(`Conflict: ${res.error.message}`, 'warning');
+    } else {
+      toast(res.error?.message ?? 'Failed to assign room', 'error');
     }
     fetchBooking();
     setActionLoading(false);
@@ -51,7 +73,9 @@ export function BookingDetailPage() {
   const markPlatformActioned = async () => {
     if (!id) return;
     setActionLoading(true);
-    await api.patch(`/bookings/${id}/platform-action`, {});
+    const res = await api.patch(`/bookings/${id}/platform-action`, {});
+    if (res.success) toast('Marked as actioned on platform', 'success');
+    else toast(res.error?.message ?? 'Failed to mark actioned', 'error');
     fetchBooking();
     setActionLoading(false);
   };
@@ -59,8 +83,9 @@ export function BookingDetailPage() {
   const addNote = async () => {
     if (!id || !note.trim()) return;
     setActionLoading(true);
-    await api.post(`/bookings/${id}/notes`, { note: note.trim() });
-    setNote('');
+    const res = await api.post(`/bookings/${id}/notes`, { note: note.trim() });
+    if (res.success) { setNote(''); toast('Note added', 'success'); }
+    else toast(res.error?.message ?? 'Failed to add note', 'error');
     fetchBooking();
     setActionLoading(false);
   };
@@ -69,11 +94,14 @@ export function BookingDetailPage() {
     return <div className="h-96 animate-pulse rounded-lg bg-gray-200" />;
   }
 
-  if (!booking) {
+  if (error || !booking) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">Booking not found</p>
-        <Link to="/inbox" className="mt-4 text-blue-600 hover:underline">Back to Inbox</Link>
+      <div className="py-16 text-center">
+        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p className="mt-4 text-lg font-medium text-gray-900">{error ?? 'Booking not found'}</p>
+        <Link to="/inbox" className="mt-4 inline-block text-blue-600 hover:underline">Back to Inbox</Link>
       </div>
     );
   }
@@ -249,21 +277,33 @@ export function BookingDetailPage() {
 
           {/* Audit trail */}
           <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <h3 className="mb-3 font-medium text-gray-900">Audit Trail</h3>
-            <div className="space-y-3">
-              {(booking.events ?? []).map((event: BookingEventRow & { actor_name?: string }) => (
-                <div key={event.id} className="flex items-start gap-3 text-sm">
-                  <div className="mt-0.5 h-2 w-2 rounded-full bg-blue-500" />
-                  <div>
-                    <p className="font-medium text-gray-900">{event.event_type}</p>
-                    <p className="text-gray-500">
-                      {event.actor_name ?? 'System'} &middot;{' '}
-                      {new Date(event.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <h3 className="mb-4 font-medium text-gray-900">Audit Trail</h3>
+            {(booking.events ?? []).length === 0 ? (
+              <p className="text-sm text-gray-500">No events recorded yet.</p>
+            ) : (
+              <div className="relative space-y-0">
+                <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gray-200" />
+                {(booking.events ?? []).map((event: BookingEventRow & { actor_name?: string }) => {
+                  const colors: Record<string, string> = {
+                    RECEIVED: 'bg-gray-400', PARSED: 'bg-blue-400', ASSIGNED: 'bg-indigo-500',
+                    APPROVED: 'bg-green-500', REJECTED: 'bg-red-500', PLATFORM_ACTIONED: 'bg-orange-500',
+                    CONFIRMED: 'bg-green-600', CANCELLED: 'bg-gray-500', NOTE_ADDED: 'bg-yellow-500',
+                  };
+                  return (
+                    <div key={event.id} className="relative flex items-start gap-3 py-2 text-sm">
+                      <div className={`mt-1 h-3.5 w-3.5 rounded-full border-2 border-white ${colors[event.event_type] ?? 'bg-gray-400'}`} />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{event.event_type.replace('_', ' ')}</p>
+                        <p className="text-xs text-gray-500">
+                          {event.actor_name ?? 'System'} &middot;{' '}
+                          {new Date(event.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

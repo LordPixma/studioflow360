@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router';
 import { useAuth } from '../context/auth.tsx';
+import { useWebSocket } from '../context/websocket.tsx';
 import type { ReactNode } from 'react';
 
 const navItems = [
@@ -12,6 +13,7 @@ const navItems = [
 
 export function Layout({ children }: { children: ReactNode }) {
   const { staff } = useAuth();
+  const { connected } = useWebSocket();
 
   return (
     <div className="flex h-screen">
@@ -43,8 +45,16 @@ export function Layout({ children }: { children: ReactNode }) {
 
         {/* User info */}
         <div className="border-t border-gray-200 px-6 py-4">
-          <p className="text-sm font-medium text-gray-900">{staff?.displayName}</p>
-          <p className="text-xs text-gray-500">{staff?.role}</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900">{staff?.displayName}</p>
+              <p className="text-xs text-gray-500">{staff?.role}</p>
+            </div>
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300'}`}
+              title={connected ? 'Live updates connected' : 'Reconnecting...'}
+            />
+          </div>
         </div>
       </aside>
 

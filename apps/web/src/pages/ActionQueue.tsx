@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router';
 import { api } from '../lib/api.ts';
 import { PlatformBadge } from '../components/PlatformBadge.tsx';
+import { useToast } from '../components/Toast.tsx';
+import { useBookingUpdates } from '../context/websocket.tsx';
 import type { BookingRow, ApiResponse } from '@studioflow360/shared';
 import { STALE_APPROVAL_HOURS, type Platform } from '@studioflow360/shared';
 
@@ -9,8 +11,9 @@ export function ActionQueuePage() {
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  const fetchQueue = () => {
+  const fetchQueue = useCallback(() => {
     setLoading(true);
     api
       .get<BookingRow[]>('/bookings?status=APPROVED')
@@ -21,15 +24,22 @@ export function ActionQueuePage() {
         }
       })
       .finally(() => setLoading(false));
-  };
+  }, []);
 
   useEffect(() => {
     fetchQueue();
-  }, []);
+  }, [fetchQueue]);
+
+  // Live updates
+  useBookingUpdates(useCallback(() => {
+    fetchQueue();
+  }, [fetchQueue]));
 
   const markActioned = async (id: string) => {
     setActionLoading(id);
-    await api.patch(`/bookings/${id}/platform-action`, {});
+    const res = await api.patch(`/bookings/${id}/platform-action`, {});
+    if (res.success) toast('Marked as actioned', 'success');
+    else toast(res.error?.message ?? 'Failed', 'error');
     fetchQueue();
     setActionLoading(null);
   };

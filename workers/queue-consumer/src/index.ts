@@ -13,6 +13,7 @@ interface Env {
   DB: D1Database;
   EMAIL_ARCHIVE: R2Bucket;
   AI: Ai;
+  API_WORKER: Fetcher;
 }
 
 function buildExtractionPrompt(platform: Platform, emailBody: string): string {
@@ -159,6 +160,13 @@ async function processBookingEmail(env: Env, msg: QueueMessage): Promise<void> {
     await insertEvent(env, id, 'RECEIVED', null, { source: 'email', messageId: msg.messageId });
     await insertEvent(env, id, 'PARSED', null, { ai_failed: true, platform: msg.platform });
 
+    try {
+      await env.API_WORKER.fetch(new Request('https://internal/api/internal/broadcast', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'BOOKING_CREATED', booking_id: id, timestamp: now }),
+      }));
+    } catch { /* broadcast failure is non-critical */ }
+
     console.log(`Created NEEDS_REVIEW booking ${id} — AI extraction failed`);
     return;
   }
@@ -216,6 +224,14 @@ async function processBookingEmail(env: Env, msg: QueueMessage): Promise<void> {
       (k) => candidate[k as keyof BookingCandidate] != null,
     ),
   });
+
+  // Broadcast new booking to connected clients
+  try {
+    await env.API_WORKER.fetch(new Request('https://internal/api/internal/broadcast', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'BOOKING_CREATED', booking_id: id, timestamp: now }),
+    }));
+  } catch { /* broadcast failure is non-critical */ }
 
   console.log(`Created ${status} booking ${id} from ${msg.platform} (confidence: ${candidate.confidence})`);
 }

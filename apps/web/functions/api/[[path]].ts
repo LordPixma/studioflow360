@@ -1,6 +1,5 @@
 // Pages Function: proxy all /api/* requests to the API Worker
-// Dev auth is injected server-side via Pages secrets — never reaches the browser.
-// TODO: Remove dev auth injection once Cloudflare Access is configured.
+// Supports Cloudflare Access JWT (production) and dev auth fallback (staging)
 const API_WORKER_URL = 'https://studioflow360-api.samuel-1e5.workers.dev';
 
 interface PagesEnv {
@@ -21,22 +20,30 @@ export const onRequest: PagesFunction<PagesEnv> = async (context) => {
       headers: {
         'Access-Control-Allow-Origin': url.origin,
         'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': 'Content-Type, Cf-Access-Jwt-Assertion',
         'Access-Control-Allow-Credentials': 'true',
         'Access-Control-Max-Age': '86400',
       },
     });
   }
 
+  // Handle WebSocket upgrade
+  if (context.request.headers.get('Upgrade') === 'websocket') {
+    return fetch(targetUrl, { headers: context.request.headers });
+  }
+
   const headers = new Headers(context.request.headers);
   headers.set('X-Forwarded-Host', url.hostname);
 
-  // Inject dev auth from Pages environment secrets
-  const email = context.env.DEV_AUTH_EMAIL;
-  const secret = context.env.DEV_AUTH_SECRET;
-  if (email && secret) {
-    headers.set('X-Dev-Email', email);
-    headers.set('X-Dev-Secret', secret);
+  // Auth: if Cloudflare Access JWT present, forward it; otherwise inject dev auth
+  const cfAccessJwt = context.request.headers.get('Cf-Access-Jwt-Assertion');
+  if (!cfAccessJwt) {
+    const email = context.env.DEV_AUTH_EMAIL;
+    const secret = context.env.DEV_AUTH_SECRET;
+    if (email && secret) {
+      headers.set('X-Dev-Email', email);
+      headers.set('X-Dev-Secret', secret);
+    }
   }
 
   const response = await fetch(targetUrl, {

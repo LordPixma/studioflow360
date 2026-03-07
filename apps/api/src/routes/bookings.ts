@@ -19,6 +19,19 @@ type BookingEnv = {
 
 const bookings = new Hono<BookingEnv>();
 
+async function broadcastUpdate(env: Env, bookingId: string, type: string) {
+  try {
+    const hubId = env.BOOKING_HUB.idFromName('global');
+    const hub = env.BOOKING_HUB.get(hubId);
+    await hub.fetch(new Request('https://hub/broadcast', {
+      method: 'POST',
+      body: JSON.stringify({ type, booking_id: bookingId, timestamp: new Date().toISOString() }),
+    }));
+  } catch {
+    // Don't fail the request if broadcast fails
+  }
+}
+
 // GET /api/bookings - List bookings with filters
 bookings.get('/', async (c) => {
   const query = BookingListQuerySchema.parse(Object.fromEntries(new URL(c.req.url).searchParams));
@@ -177,6 +190,7 @@ bookings.patch('/:id/status', zValidator('json', UpdateBookingStatusSchema), asy
     .bind(generateId(), id, newStatus, staff.id, JSON.stringify({ from: booking.status, to: newStatus }), now)
     .run();
 
+  await broadcastUpdate(c.env, id, 'BOOKING_UPDATED');
   return c.json({ success: true, data: { id, status: newStatus } });
 });
 
@@ -246,6 +260,7 @@ bookings.patch('/:id/room', zValidator('json', AssignRoomSchema), async (c) => {
       .bind(generateId(), id, 'ASSIGNED', staff.id, JSON.stringify({ room_id, room_name: room.name, soft_conflicts: conflicts.results }), now)
       .run();
 
+    await broadcastUpdate(c.env, id, 'BOOKING_UPDATED');
     return c.json({
       success: true,
       data: { id, room_id },
@@ -264,6 +279,7 @@ bookings.patch('/:id/room', zValidator('json', AssignRoomSchema), async (c) => {
     .bind(generateId(), id, 'ASSIGNED', staff.id, JSON.stringify({ room_id, room_name: room.name }), now)
     .run();
 
+  await broadcastUpdate(c.env, id, 'BOOKING_UPDATED');
   return c.json({ success: true, data: { id, room_id } });
 });
 
@@ -301,6 +317,7 @@ bookings.patch('/:id/platform-action', async (c) => {
     .bind(generateId(), id, 'PLATFORM_ACTIONED', staff.id, JSON.stringify({ actioned_at: now }), now)
     .run();
 
+  await broadcastUpdate(c.env, id, 'BOOKING_UPDATED');
   return c.json({ success: true, data: { id, status: 'PLATFORM_ACTIONED' } });
 });
 
@@ -336,6 +353,7 @@ bookings.post('/:id/notes', zValidator('json', AddNoteSchema), async (c) => {
     .bind(generateId(), id, 'NOTE_ADDED', staff.id, JSON.stringify({ note }), now)
     .run();
 
+  await broadcastUpdate(c.env, id, 'BOOKING_UPDATED');
   return c.json({ success: true, data: { id, note } });
 });
 
