@@ -24,9 +24,16 @@ app.use('*', logger());
 app.use(
   '/api/*',
   cors({
-    origin: (origin) => origin, // Allow the requesting origin (Access handles auth)
+    origin: (origin) => {
+      const allowed = [
+        'https://app.studiomgr360.com',
+        'https://studioflow360.pages.dev',
+        'http://localhost:5173',
+      ];
+      return allowed.includes(origin) ? origin : null;
+    },
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Cf-Access-Jwt-Assertion', 'X-Dev-Email'],
+    allowHeaders: ['Content-Type', 'Cf-Access-Jwt-Assertion', 'X-Dev-Email', 'X-Dev-Secret'],
     credentials: true,
   }),
 );
