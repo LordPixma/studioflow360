@@ -38,6 +38,7 @@ export function BookingDetailPage() {
   const [msgChannel, setMsgChannel] = useState<'sms' | 'whatsapp'>('whatsapp');
   const [msgTo, setMsgTo] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
+  const [reExtracting, setReExtracting] = useState(false);
   const { toast } = useToast();
 
   const fetchBooking = useCallback(() => {
@@ -152,6 +153,20 @@ export function BookingDetailPage() {
     setSendingMsg(false);
   };
 
+  const reExtract = async () => {
+    if (!id) return;
+    setReExtracting(true);
+    const res = await api.post(`/bookings/${id}/re-extract`, {});
+    if (res.success) {
+      const data = res.data as { fields_updated?: number; confidence?: number };
+      toast(`Re-extraction successful — ${data.fields_updated ?? 0} fields updated (confidence: ${((data.confidence ?? 0) * 100).toFixed(0)}%)`, 'success');
+      fetchBooking();
+    } else {
+      toast(res.error?.message ?? 'Re-extraction failed', 'error');
+    }
+    setReExtracting(false);
+  };
+
   const updateChatLink = async (link: string) => {
     if (!id) return;
     await api.patch(`/messaging/booking/${id}/chat-link`, { external_chat_link: link || null });
@@ -218,6 +233,45 @@ export function BookingDetailPage() {
           </div>
           <button className="btn btn-warning" onClick={markPlatformActioned} disabled={actionLoading}>
             Mark Actioned
+          </button>
+        </div>
+      )}
+
+      {/* AI extraction failed banner */}
+      {booking.guest_name?.includes('AI extraction failed') && booking.raw_email_r2_key && (
+        <div className="mb-6 flex items-center justify-between rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-orange-50 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100">
+              <svg className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-red-800">AI Extraction Failed</p>
+              <p className="text-xs text-red-600">The original email contains booking data that wasn't extracted. Click to retry with improved extraction.</p>
+            </div>
+          </div>
+          <button
+            className="btn btn-primary flex items-center gap-2"
+            onClick={reExtract}
+            disabled={reExtracting}
+          >
+            {reExtracting ? (
+              <>
+                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Extracting...
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
+                </svg>
+                Re-extract
+              </>
+            )}
           </button>
         </div>
       )}
@@ -344,6 +398,18 @@ export function BookingDetailPage() {
                     {status === 'PLATFORM_ACTIONED' ? 'Mark Actioned' : status.charAt(0) + status.slice(1).toLowerCase().replace('_', ' ')}
                   </button>
                 ))}
+                {booking.raw_email_r2_key && (
+                  <button
+                    className="btn btn-ghost flex items-center gap-1.5"
+                    onClick={reExtract}
+                    disabled={reExtracting}
+                  >
+                    <svg className={`h-3.5 w-3.5 ${reExtracting ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
+                    </svg>
+                    {reExtracting ? 'Extracting...' : 'Re-extract'}
+                  </button>
+                )}
                 <button
                   className="btn btn-ghost"
                   onClick={async () => {

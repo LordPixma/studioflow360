@@ -34,6 +34,10 @@ bucket_name = "studioflow360-emails"
 binding = "AVATARS"
 bucket_name = "studioflow360-avatars"
 
+# Workers AI
+[ai]
+binding = "AI"
+
 # Durable Objects
 [durable_objects]
 bindings = [

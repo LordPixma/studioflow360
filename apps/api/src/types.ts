@@ -5,6 +5,7 @@ export interface Env {
   EMAIL_ARCHIVE: R2Bucket;
   AVATARS: R2Bucket;
   BOOKING_HUB: DurableObjectNamespace;
+  AI: Ai;
   ENVIRONMENT: string;
   TURNSTILE_SECRET_KEY: string;
   CF_ACCESS_TEAM_DOMAIN: string;

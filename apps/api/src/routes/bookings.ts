@@ -446,6 +446,218 @@ bookings.post('/:id/notes', zValidator('json', AddNoteSchema), async (c) => {
   return c.json({ success: true, data: { id, note } });
 });
 
+// POST /api/bookings/:id/re-extract - Re-run AI extraction on stored email
+bookings.post('/:id/re-extract', async (c) => {
+  const id = c.req.param('id');
+  const staff = c.get('staff');
+
+  const booking = await c.env.DB.prepare(
+    'SELECT id, platform, raw_email_r2_key, status FROM bookings WHERE id = ?',
+  )
+    .bind(id)
+    .first<{ id: string; platform: string; raw_email_r2_key: string | null; status: string }>();
+
+  if (!booking) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } }, 404);
+  }
+
+  if (!booking.raw_email_r2_key) {
+    return c.json({ success: false, error: { code: 'NO_EMAIL', message: 'No raw email stored for this booking' } }, 400);
+  }
+
+  // Fetch raw email from R2
+  const r2Object = await c.env.EMAIL_ARCHIVE.get(booking.raw_email_r2_key);
+  if (!r2Object) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Email archive not found in R2' } }, 404);
+  }
+
+  const rawEmail = await r2Object.text();
+
+  // Parse email body - strip HTML to plain text for better AI extraction
+  const htmlContent = rawEmail.includes('Content-Type:')
+    ? rawEmail.split(/\r?\n\r?\n/).slice(1).join('\n\n')
+    : rawEmail;
+
+  const plainText = htmlContent
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+    .replace(/<(p|div|tr|li|h[1-6])[^>]*>/gi, '\n')
+    .replace(/<\/?(td|th)[^>]*>/gi, '\t')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&pound;/gi, '£')
+    .replace(/&#163;/gi, '£')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  if (!plainText) {
+    return c.json({ success: false, error: { code: 'EMPTY_EMAIL', message: 'Could not extract text from email' } }, 400);
+  }
+
+  // Run AI extraction
+  const platform = booking.platform as 'giggster' | 'peerspace' | 'scouty' | 'tagvenue' | 'direct';
+
+  const platformHints: Record<string, string> = {
+    giggster: 'Giggster booking platform email with structured data fields.',
+    peerspace: 'Peerspace booking platform email with pricing and guest details.',
+    scouty: 'Scouty booking platform email with reference numbers and location details.',
+    tagvenue: 'TagVenue enquiry-style email with booking dates, times, and venue details.',
+    direct: 'Email from an unknown sender classified as booking-related. Carefully scan ALL text for dates, times, guest names, guest counts, locations, and pricing.',
+  };
+
+  const prompt = `You are a booking data extraction system for a studio/venue management platform.
+Extract ALL booking information from the email text below.
+
+Platform context: ${platformHints[platform] ?? platformHints.direct}
+
+Return ONLY a valid JSON object with these fields (use null for fields you cannot find):
+{
+  "guestName": "full name of the person making the booking",
+  "guestEmail": "their email address if visible, else null",
+  "requestedDate": "MUST be in YYYY-MM-DD format (e.g. 2026-03-13 for 13th March 2026)",
+  "startTime": "MUST be in HH:MM 24-hour format (e.g. 12:00)",
+  "endTime": "MUST be in HH:MM 24-hour format (e.g. 13:00)",
+  "roomHint": "any venue, room, studio, or space name mentioned",
+  "guestCount": number or null,
+  "totalPrice": number or null,
+  "notes": "any special requests, location details, or additional context",
+  "confidence": 0.0 to 1.0 based on how many fields you successfully extracted
+}
+
+IMPORTANT:
+- Dates like "Fri, 13 Mar 2026" → "2026-03-13"
+- Times like "12:00 - 13:00" → startTime "12:00", endTime "13:00"
+- Set confidence above 0.7 if you found date + time + at least one other field
+
+EMAIL TEXT:
+${plainText.slice(0, 4000)}`;
+
+  try {
+    const response = await (c.env.AI as unknown as { run(model: string, input: unknown): Promise<unknown> }).run(
+      '@cf/meta/llama-3.1-70b-instruct',
+      {
+        messages: [
+          { role: 'system', content: 'You are a precise data extraction assistant. Return ONLY valid JSON, no markdown, no code blocks, no explanations.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 1024,
+        temperature: 0.1,
+      },
+    );
+
+    if (!response || typeof response !== 'object' || !('response' in response)) {
+      return c.json({ success: false, error: { code: 'AI_ERROR', message: 'Unexpected AI response format' } }, 500);
+    }
+
+    const responseText = (response as { response: string }).response;
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      return c.json({
+        success: false,
+        error: { code: 'AI_NO_JSON', message: 'AI did not return valid JSON' },
+        data: { ai_response: responseText.slice(0, 500), email_preview: plainText.slice(0, 300) },
+      }, 500);
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    // Clean up AI response
+    for (const key of Object.keys(parsed)) {
+      if (parsed[key] === 'null' || parsed[key] === 'N/A' || parsed[key] === '') parsed[key] = null;
+    }
+    if (typeof parsed.guestCount === 'string') parsed.guestCount = parseInt(parsed.guestCount, 10) || null;
+    if (typeof parsed.totalPrice === 'string') parsed.totalPrice = parseFloat(parsed.totalPrice) || null;
+    if (typeof parsed.confidence === 'string') parsed.confidence = parseFloat(parsed.confidence) || 0;
+
+    // Update the booking with extracted data
+    const now = nowISO();
+    const updates: string[] = ['updated_at = ?'];
+    const params: unknown[] = [now];
+
+    if (parsed.guestName && parsed.guestName !== 'null') {
+      updates.push('guest_name = ?');
+      params.push(parsed.guestName);
+    }
+    if (parsed.guestEmail && parsed.guestEmail !== 'null') {
+      updates.push('guest_email = ?');
+      params.push(parsed.guestEmail);
+    }
+    if (parsed.requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(parsed.requestedDate)) {
+      updates.push('booking_date = ?');
+      params.push(parsed.requestedDate);
+    }
+    if (parsed.startTime && /^\d{2}:\d{2}$/.test(parsed.startTime)) {
+      updates.push('start_time = ?');
+      params.push(parsed.startTime);
+    }
+    if (parsed.endTime && /^\d{2}:\d{2}$/.test(parsed.endTime)) {
+      updates.push('end_time = ?');
+      params.push(parsed.endTime);
+    }
+    if (parsed.guestCount != null) {
+      updates.push('guest_count = ?');
+      params.push(parsed.guestCount);
+    }
+    if (parsed.totalPrice != null) {
+      updates.push('total_price = ?');
+      params.push(parsed.totalPrice);
+    }
+    if (parsed.notes) {
+      updates.push('notes = ?');
+      params.push(parsed.notes);
+    }
+
+    const confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0.5;
+    updates.push('ai_confidence = ?');
+    params.push(confidence);
+
+    // Calculate duration if we have times
+    if (parsed.startTime && parsed.endTime) {
+      const startParts = parsed.startTime.split(':').map(Number);
+      const endParts = parsed.endTime.split(':').map(Number);
+      const duration = ((endParts[0] * 60 + endParts[1]) - (startParts[0] * 60 + startParts[1])) / 60;
+      if (duration > 0) {
+        updates.push('duration_hours = ?');
+        params.push(duration);
+      }
+    }
+
+    params.push(id);
+
+    await c.env.DB.prepare(`UPDATE bookings SET ${updates.join(', ')} WHERE id = ?`)
+      .bind(...params)
+      .run();
+
+    // Add audit event
+    await c.env.DB.prepare(
+      'INSERT INTO booking_events (id, booking_id, event_type, actor_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    )
+      .bind(
+        generateId(), id, 'EDITED', staff.id,
+        JSON.stringify({ action: 're-extract', confidence, fields_updated: updates.filter(u => u !== 'updated_at = ?' && u !== 'ai_confidence = ?').map(u => u.split(' =')[0]) }),
+        now,
+      )
+      .run();
+
+    await broadcastUpdate(c.env, id, 'BOOKING_UPDATED');
+
+    return c.json({
+      success: true,
+      data: { extracted: parsed, confidence, fields_updated: updates.length - 2 },
+    });
+  } catch (err) {
+    console.error('Re-extraction failed:', err);
+    return c.json({ success: false, error: { code: 'EXTRACTION_ERROR', message: String(err) } }, 500);
+  }
+});
+
 // GET /api/bookings/:id/raw-email - Fetch raw email from R2
 bookings.get('/:id/raw-email', async (c) => {
   const id = c.req.param('id');
