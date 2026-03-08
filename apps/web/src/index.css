@@ -101,6 +101,28 @@ input, select, textarea {
 .btn-ghost { background: transparent; color: #64748b; border: 1px solid #e5e7eb; }
 .btn-ghost:hover:not(:disabled) { background: #f9fafb; border-color: #d1d5db; color: #334155; }
 
+/* Form field input */
+.field-input {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  background: #fafafa;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #111827;
+  border-radius: 0.5rem;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.field-input::placeholder { color: #9ca3af; }
+.field-input:focus {
+  background: #fff;
+  border-color: #111827;
+  box-shadow: 0 0 0 1px #111827;
+  outline: none;
+}
+.field-input:disabled {
+  cursor: not-allowed;
+}
+
 /* Badge styles */
 .badge {
   display: inline-flex; align-items: center; gap: 0.25rem;
