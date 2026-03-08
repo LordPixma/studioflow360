@@ -83,6 +83,22 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
+  workers/email-monitor:
+    dependencies:
+      '@studioflow360/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20260307.1
+        version: 4.20260307.1
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+      wrangler:
+        specifier: ^4.71.0
+        version: 4.71.0(@cloudflare/workers-types@4.20260307.1)
+
   workers/email-worker:
     dependencies:
       '@studioflow360/shared':

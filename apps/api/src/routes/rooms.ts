@@ -63,4 +63,29 @@ rooms.patch('/:id', zValidator('json', UpdateRoomSchema), async (c) => {
   return c.json({ success: true, data: { id } });
 });
 
+// DELETE /api/rooms/:id (admin/manager only) — soft delete
+rooms.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+
+  const room = await c.env.DB.prepare('SELECT id FROM rooms WHERE id = ?').bind(id).first();
+  if (!room) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Room not found' } }, 404);
+  }
+
+  // Check for active bookings
+  const activeBookings = await c.env.DB.prepare(
+    `SELECT COUNT(*) as count FROM bookings WHERE room_id = ? AND status NOT IN ('REJECTED', 'CANCELLED')`,
+  ).bind(id).first<{ count: number }>();
+
+  if (activeBookings && activeBookings.count > 0) {
+    return c.json({
+      success: false,
+      error: { code: 'HAS_BOOKINGS', message: `Room has ${activeBookings.count} active booking(s). Deactivate instead.` },
+    }, 409);
+  }
+
+  await c.env.DB.prepare('DELETE FROM rooms WHERE id = ?').bind(id).run();
+  return c.json({ success: true, data: { id } });
+});
+
 export default rooms;

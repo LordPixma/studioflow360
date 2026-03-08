@@ -25,10 +25,14 @@ id = "6cb2a4a5f0a542c99652273474e76b44"
 binding = "RATE_LIMIT"
 id = "09d54d9bf159421db0c47c38abcd623f"
 
-# R2 Bucket
+# R2 Buckets
 [[r2_buckets]]
 binding = "EMAIL_ARCHIVE"
 bucket_name = "studioflow360-emails"
+
+[[r2_buckets]]
+binding = "AVATARS"
+bucket_name = "studioflow360-avatars"
 
 # Durable Objects
 [durable_objects]

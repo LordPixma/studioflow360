@@ -25,7 +25,20 @@ class ApiClient {
       throw new Error('Unauthorized');
     }
 
-    return response.json() as Promise<ApiResponse<T>>;
+    const data = await response.json() as Record<string, unknown>;
+
+    // Normalize non-standard error responses (e.g. Zod validation errors from zValidator)
+    if (!response.ok && data.success === undefined) {
+      return {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: typeof data.error === 'string' ? data.error : 'Validation failed',
+        },
+      } as ApiResponse<T>;
+    }
+
+    return data as unknown as ApiResponse<T>;
   }
 
   get<T>(path: string): Promise<ApiResponse<T>> {
@@ -44,6 +57,10 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
+  }
+
+  delete<T>(path: string): Promise<ApiResponse<T>> {
+    return this.request<T>(path, { method: 'DELETE' });
   }
 }
 

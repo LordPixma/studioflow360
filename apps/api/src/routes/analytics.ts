@@ -75,4 +75,82 @@ analytics.get('/timeline', async (c) => {
   return c.json({ success: true, data: results.results });
 });
 
+// GET /api/analytics/revenue - Revenue over time
+analytics.get('/revenue', async (c) => {
+  const granularity = c.req.query('granularity') ?? 'daily';
+  const dateFrom = c.req.query('date_from') ?? new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]!;
+  const dateTo = c.req.query('date_to') ?? new Date().toISOString().split('T')[0]!;
+
+  let groupExpr: string;
+  if (granularity === 'monthly') groupExpr = "strftime('%Y-%m', booking_date)";
+  else if (granularity === 'weekly') groupExpr = "strftime('%Y-W%W', booking_date)";
+  else groupExpr = 'DATE(booking_date)';
+
+  const results = await c.env.DB.prepare(
+    `SELECT ${groupExpr} as period,
+            COALESCE(SUM(total_price), 0) as revenue,
+            COUNT(*) as booking_count
+     FROM bookings
+     WHERE booking_date >= ? AND booking_date <= ?
+     AND status NOT IN ('REJECTED','CANCELLED')
+     GROUP BY period ORDER BY period`,
+  ).bind(dateFrom, dateTo).all();
+
+  return c.json({ success: true, data: results.results });
+});
+
+// GET /api/analytics/utilization - Room utilization rates
+analytics.get('/utilization', async (c) => {
+  const dateFrom = c.req.query('date_from') ?? new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]!;
+  const dateTo = c.req.query('date_to') ?? new Date().toISOString().split('T')[0]!;
+
+  const results = await c.env.DB.prepare(
+    `SELECT r.id, r.name, r.color_hex,
+            COUNT(b.id) as total_bookings,
+            COALESCE(SUM(b.duration_hours), 0) as total_hours
+     FROM rooms r
+     LEFT JOIN bookings b ON r.id = b.room_id
+       AND b.booking_date >= ? AND b.booking_date <= ?
+       AND b.status NOT IN ('REJECTED','CANCELLED')
+     WHERE r.active = 1
+     GROUP BY r.id ORDER BY r.name`,
+  ).bind(dateFrom, dateTo).all();
+
+  return c.json({ success: true, data: results.results });
+});
+
+// GET /api/analytics/peak-hours - Booking distribution by hour
+analytics.get('/peak-hours', async (c) => {
+  const dateFrom = c.req.query('date_from') ?? new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]!;
+  const dateTo = c.req.query('date_to') ?? new Date().toISOString().split('T')[0]!;
+
+  const results = await c.env.DB.prepare(
+    `SELECT CAST(SUBSTR(start_time, 1, 2) AS INTEGER) as hour,
+            COUNT(*) as count
+     FROM bookings
+     WHERE booking_date >= ? AND booking_date <= ?
+     AND status NOT IN ('REJECTED','CANCELLED')
+     GROUP BY hour ORDER BY hour`,
+  ).bind(dateFrom, dateTo).all();
+
+  return c.json({ success: true, data: results.results });
+});
+
+// GET /api/analytics/average-value - Average booking value by platform
+analytics.get('/average-value', async (c) => {
+  const dateFrom = c.req.query('date_from') ?? new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]!;
+  const dateTo = c.req.query('date_to') ?? new Date().toISOString().split('T')[0]!;
+
+  const results = await c.env.DB.prepare(
+    `SELECT platform, AVG(total_price) as avg_value, COUNT(*) as count,
+            COALESCE(SUM(total_price), 0) as total_revenue
+     FROM bookings
+     WHERE total_price IS NOT NULL AND status NOT IN ('REJECTED','CANCELLED')
+     AND booking_date >= ? AND booking_date <= ?
+     GROUP BY platform`,
+  ).bind(dateFrom, dateTo).all();
+
+  return c.json({ success: true, data: results.results });
+});
+
 export default analytics;

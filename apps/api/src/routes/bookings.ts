@@ -5,6 +5,7 @@ import {
   AssignRoomSchema,
   AddNoteSchema,
   BookingListQuerySchema,
+  StaffBookingSchema,
   isValidStatusTransition,
   generateId,
   nowISO,
@@ -96,6 +97,52 @@ bookings.get('/', async (c) => {
       total_pages: Math.ceil(total / query.per_page),
     },
   });
+});
+
+// POST /api/bookings - Staff-created booking (walk-ins, phone bookings)
+bookings.post('/', zValidator('json', StaffBookingSchema), async (c) => {
+  const body = c.req.valid('json');
+  const staff = c.get('staff');
+  const now = nowISO();
+  const id = generateId();
+
+  await c.env.DB.prepare(
+    `INSERT INTO bookings (id, platform, platform_ref, guest_name, guest_email, booking_date, start_time, end_time,
+     duration_hours, guest_count, total_price, currency, notes, room_id, status, ai_confidence, assigned_to, created_at, updated_at)
+     VALUES (?, 'direct', NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'GBP', ?, ?, 'CONFIRMED', 1.0, ?, ?, ?)`,
+  )
+    .bind(
+      id,
+      body.guest_name,
+      body.guest_email ?? null,
+      body.booking_date,
+      body.start_time,
+      body.end_time,
+      // Calculate duration
+      (() => {
+        const parts = body.start_time.split(':').map(Number);
+        const endParts = body.end_time.split(':').map(Number);
+        return ((endParts[0]! * 60 + endParts[1]!) - (parts[0]! * 60 + parts[1]!)) / 60;
+      })(),
+      body.guest_count ?? null,
+      body.total_price ?? null,
+      body.notes ?? null,
+      body.room_id ?? null,
+      staff.id,
+      now,
+      now,
+    )
+    .run();
+
+  // Insert audit event
+  await c.env.DB.prepare(
+    'INSERT INTO booking_events (id, booking_id, event_type, actor_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  )
+    .bind(generateId(), id, 'RECEIVED', staff.id, JSON.stringify({ source: 'staff_manual', created_by: staff.displayName }), now)
+    .run();
+
+  await broadcastUpdate(c.env, id, 'BOOKING_CREATED');
+  return c.json({ success: true, data: { id } }, 201);
 });
 
 // GET /api/bookings/:id - Full booking detail with events
@@ -319,6 +366,48 @@ bookings.patch('/:id/platform-action', async (c) => {
 
   await broadcastUpdate(c.env, id, 'BOOKING_UPDATED');
   return c.json({ success: true, data: { id, status: 'PLATFORM_ACTIONED' } });
+});
+
+// PATCH /api/bookings/:id/assign - Assign coordinator staff
+bookings.patch('/:id/assign', async (c) => {
+  const id = c.req.param('id');
+  const staff = c.get('staff');
+  const { staff_id } = await c.req.json<{ staff_id: string | null }>();
+
+  const booking = await c.env.DB.prepare('SELECT id FROM bookings WHERE id = ?')
+    .bind(id)
+    .first();
+
+  if (!booking) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } }, 404);
+  }
+
+  // Validate target staff exists if not unassigning
+  let assigneeName = 'Unassigned';
+  if (staff_id) {
+    const targetStaff = await c.env.DB.prepare('SELECT id, display_name FROM staff_users WHERE id = ? AND active = 1')
+      .bind(staff_id)
+      .first<{ id: string; display_name: string }>();
+
+    if (!targetStaff) {
+      return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Staff member not found' } }, 404);
+    }
+    assigneeName = targetStaff.display_name;
+  }
+
+  const now = nowISO();
+  await c.env.DB.prepare('UPDATE bookings SET assigned_to = ?, updated_at = ? WHERE id = ?')
+    .bind(staff_id, now, id)
+    .run();
+
+  await c.env.DB.prepare(
+    'INSERT INTO booking_events (id, booking_id, event_type, actor_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  )
+    .bind(generateId(), id, 'ASSIGNED', staff.id, JSON.stringify({ assigned_to: staff_id, assignee_name: assigneeName }), now)
+    .run();
+
+  await broadcastUpdate(c.env, id, 'BOOKING_UPDATED');
+  return c.json({ success: true, data: { id, assigned_to: staff_id } });
 });
 
 // POST /api/bookings/:id/notes - Add staff note

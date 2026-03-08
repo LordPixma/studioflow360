@@ -8,14 +8,36 @@ import { useBookingUpdates } from '../context/websocket.tsx';
 import type { BookingDetail, BookingEventRow, RoomRow } from '@studioflow360/shared';
 import { VALID_STATUS_TRANSITIONS, type BookingStatus } from '@studioflow360/shared';
 
+interface StaffListItem {
+  id: string;
+  display_name: string;
+  role: string;
+  phone_number?: string | null;
+}
+
+interface MessageItem {
+  id: string;
+  direction: 'inbound' | 'outbound';
+  channel: 'sms' | 'whatsapp';
+  body: string;
+  status: string;
+  created_at: string;
+}
+
 export function BookingDetailPage() {
   const { id } = useParams();
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [rooms, setRooms] = useState<RoomRow[]>([]);
+  const [staffList, setStaffList] = useState<StaffListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [messages, setMessages] = useState<MessageItem[]>([]);
+  const [msgBody, setMsgBody] = useState('');
+  const [msgChannel, setMsgChannel] = useState<'sms' | 'whatsapp'>('whatsapp');
+  const [msgTo, setMsgTo] = useState('');
+  const [sendingMsg, setSendingMsg] = useState(false);
   const { toast } = useToast();
 
   const fetchBooking = useCallback(() => {
@@ -33,7 +55,15 @@ export function BookingDetailPage() {
     api.get<RoomRow[]>('/rooms').then((res) => {
       if (res.success && res.data) setRooms(res.data);
     });
-  }, [fetchBooking]);
+    api.get<StaffListItem[]>('/staff/list').then((res) => {
+      if (res.success && res.data) setStaffList(res.data);
+    });
+    if (id) {
+      api.get<MessageItem[]>(`/messaging/booking/${id}`).then((res) => {
+        if (res.success && res.data) setMessages(res.data);
+      });
+    }
+  }, [fetchBooking, id]);
 
   // Live updates
   useBookingUpdates(useCallback((event) => {
@@ -80,6 +110,16 @@ export function BookingDetailPage() {
     setActionLoading(false);
   };
 
+  const assignStaff = async (staffId: string | null) => {
+    if (!id) return;
+    setActionLoading(true);
+    const res = await api.patch(`/bookings/${id}/assign`, { staff_id: staffId || null });
+    if (res.success) toast(staffId ? 'Coordinator assigned' : 'Coordinator unassigned', 'success');
+    else toast(res.error?.message ?? 'Failed to assign coordinator', 'error');
+    fetchBooking();
+    setActionLoading(false);
+  };
+
   const addNote = async () => {
     if (!id || !note.trim()) return;
     setActionLoading(true);
@@ -90,213 +130,384 @@ export function BookingDetailPage() {
     setActionLoading(false);
   };
 
+  const sendMessage = async () => {
+    if (!id || !msgBody.trim() || !msgTo.trim()) return;
+    setSendingMsg(true);
+    const res = await api.post('/messaging/send', {
+      booking_id: id,
+      channel: msgChannel,
+      to_number: msgTo.trim(),
+      body: msgBody.trim(),
+    });
+    if (res.success) {
+      setMsgBody('');
+      toast(`${msgChannel === 'whatsapp' ? 'WhatsApp' : 'SMS'} sent`, 'success');
+      // Refresh messages
+      api.get<MessageItem[]>(`/messaging/booking/${id}`).then((r) => {
+        if (r.success && r.data) setMessages(r.data);
+      });
+    } else {
+      toast(res.error?.message ?? 'Failed to send message', 'error');
+    }
+    setSendingMsg(false);
+  };
+
+  const updateChatLink = async (link: string) => {
+    if (!id) return;
+    await api.patch(`/messaging/booking/${id}/chat-link`, { external_chat_link: link || null });
+    fetchBooking();
+    toast('Chat link updated', 'success');
+  };
+
   if (loading) {
-    return <div className="h-96 animate-pulse rounded-lg bg-gray-200" />;
+    return <div className="skeleton h-96" />;
   }
 
   if (error || !booking) {
     return (
-      <div className="py-16 text-center">
-        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <p className="mt-4 text-lg font-medium text-gray-900">{error ?? 'Booking not found'}</p>
-        <Link to="/inbox" className="mt-4 inline-block text-blue-600 hover:underline">Back to Inbox</Link>
+      <div className="py-20 text-center">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+          <svg className="h-7 w-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p className="text-base font-semibold text-gray-900">{error ?? 'Booking not found'}</p>
+        <Link to="/inbox" className="mt-4 inline-block text-sm font-medium text-blue-600 hover:text-blue-700">Back to Inbox</Link>
       </div>
     );
   }
 
   const availableTransitions = VALID_STATUS_TRANSITIONS[booking.status] ?? [];
+  const btnStyle: Record<string, string> = {
+    APPROVED: 'btn-primary', REJECTED: 'btn-danger', CONFIRMED: 'btn-success',
+    CANCELLED: 'btn-ghost', PENDING: 'btn-warning', PLATFORM_ACTIONED: 'btn-warning',
+    NEEDS_REVIEW: 'btn-warning',
+  };
 
   return (
-    <div>
+    <div className="animate-fade-in">
+      {/* Header */}
       <div className="mb-6 flex items-center gap-4">
-        <Link to="/inbox" className="text-gray-500 hover:text-gray-700">&larr; Back</Link>
-        <h1 className="text-2xl font-bold text-gray-900">Booking Detail</h1>
+        <Link to="/inbox" className="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+          Back
+        </Link>
+        <div className="h-5 w-px bg-gray-300" />
+        <h1 className="text-xl font-bold tracking-tight text-gray-900">Booking Detail</h1>
+        <div className="flex items-center gap-2">
+          <PlatformBadge platform={booking.platform} />
+          <StatusBadge status={booking.status} />
+        </div>
       </div>
 
       {/* Manual action banner */}
       {booking.status === 'APPROVED' && !booking.platform_actioned && booking.platform !== 'direct' && (
-        <div className="mb-6 rounded-lg border border-orange-300 bg-orange-50 p-4">
-          <p className="font-medium text-orange-800">
-            Action Required: Accept/reject this booking on {booking.platform}
-          </p>
-          <button
-            className="mt-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
-            onClick={markPlatformActioned}
-            disabled={actionLoading}
-          >
-            Mark Platform Actioned
+        <div className="mb-6 flex items-center justify-between rounded-xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
+              <svg className="h-5 w-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-orange-800">Action Required</p>
+              <p className="text-xs text-orange-600">Accept/reject this booking on {booking.platform}</p>
+            </div>
+          </div>
+          <button className="btn btn-warning" onClick={markPlatformActioned} disabled={actionLoading}>
+            Mark Actioned
           </button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Left: Booking details */}
-        <div className="space-y-6">
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <PlatformBadge platform={booking.platform} />
-              <StatusBadge status={booking.status} />
-            </div>
-
-            <dl className="grid grid-cols-2 gap-4 text-sm">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        {/* Left: Booking details — wider */}
+        <div className="space-y-5 lg:col-span-3">
+          {/* Guest info card */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-400">Guest Information</h3>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
               <div>
-                <dt className="text-gray-500">Guest Name</dt>
-                <dd className="font-medium">{booking.guest_name}</dd>
+                <dt className="text-xs text-gray-400">Guest Name</dt>
+                <dd className="mt-0.5 font-semibold text-gray-900">{booking.guest_name}</dd>
               </div>
               <div>
-                <dt className="text-gray-500">Guest Email</dt>
-                <dd className="font-medium">{booking.guest_email ?? '—'}</dd>
+                <dt className="text-xs text-gray-400">Guest Email</dt>
+                <dd className="mt-0.5 font-medium text-gray-700">{booking.guest_email ?? '\u2014'}</dd>
               </div>
               <div>
-                <dt className="text-gray-500">Date</dt>
-                <dd className="font-medium">{booking.booking_date}</dd>
+                <dt className="text-xs text-gray-400">Date</dt>
+                <dd className="mt-0.5 font-semibold text-gray-900">{booking.booking_date}</dd>
               </div>
               <div>
-                <dt className="text-gray-500">Time</dt>
-                <dd className="font-medium">{booking.start_time} – {booking.end_time}</dd>
+                <dt className="text-xs text-gray-400">Time</dt>
+                <dd className="mt-0.5 font-semibold text-gray-900">{booking.start_time} \u2013 {booking.end_time}</dd>
               </div>
               <div>
-                <dt className="text-gray-500">Duration</dt>
-                <dd className="font-medium">{booking.duration_hours ?? '—'} hours</dd>
+                <dt className="text-xs text-gray-400">Duration</dt>
+                <dd className="mt-0.5 font-medium text-gray-700">{booking.duration_hours ?? '\u2014'} hours</dd>
               </div>
               <div>
-                <dt className="text-gray-500">Guest Count</dt>
-                <dd className="font-medium">{booking.guest_count ?? '—'}</dd>
+                <dt className="text-xs text-gray-400">Guest Count</dt>
+                <dd className="mt-0.5 font-medium text-gray-700">{booking.guest_count ?? '\u2014'}</dd>
               </div>
               <div>
-                <dt className="text-gray-500">Price</dt>
-                <dd className="font-medium">
+                <dt className="text-xs text-gray-400">Price</dt>
+                <dd className="mt-0.5 font-semibold text-gray-900">
                   {booking.total_price != null
-                    ? `${booking.currency ?? 'GBP'} ${booking.total_price.toFixed(2)}`
-                    : '—'}
+                    ? `${booking.currency === 'GBP' ? '\u00A3' : booking.currency ?? '\u00A3'}${booking.total_price.toFixed(2)}`
+                    : '\u2014'}
                 </dd>
               </div>
               <div>
-                <dt className="text-gray-500">Platform Ref</dt>
-                <dd className="font-medium">{booking.platform_ref ?? '—'}</dd>
+                <dt className="text-xs text-gray-400">Platform Ref</dt>
+                <dd className="mt-0.5 font-medium text-gray-700">{booking.platform_ref ?? '\u2014'}</dd>
               </div>
               <div>
-                <dt className="text-gray-500">AI Confidence</dt>
-                <dd className="font-medium">
-                  {booking.ai_confidence != null
-                    ? `${(booking.ai_confidence * 100).toFixed(0)}%`
-                    : '—'}
+                <dt className="text-xs text-gray-400">AI Confidence</dt>
+                <dd className="mt-0.5">
+                  {booking.ai_confidence != null ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-200">
+                        <div
+                          className={`h-full rounded-full ${booking.ai_confidence >= 0.7 ? 'bg-emerald-500' : booking.ai_confidence >= 0.4 ? 'bg-amber-500' : 'bg-red-500'}`}
+                          style={{ width: `${booking.ai_confidence * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-semibold text-gray-600">{(booking.ai_confidence * 100).toFixed(0)}%</span>
+                    </div>
+                  ) : '\u2014'}
                 </dd>
               </div>
               {booking.notes && (
                 <div className="col-span-2">
-                  <dt className="text-gray-500">Guest Notes</dt>
-                  <dd className="font-medium">{booking.notes}</dd>
+                  <dt className="text-xs text-gray-400">Guest Notes</dt>
+                  <dd className="mt-0.5 rounded-lg bg-gray-50 p-3 text-sm text-gray-700">{booking.notes}</dd>
                 </div>
               )}
             </dl>
           </div>
 
-          {/* Room assignment */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <h3 className="mb-3 font-medium text-gray-900">Room Assignment</h3>
-            <select
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={booking.room_id ?? ''}
-              onChange={(e) => e.target.value && assignRoom(e.target.value)}
-              disabled={actionLoading}
-            >
-              <option value="">Select a room...</option>
-              {rooms.map((room) => (
-                <option key={room.id} value={room.id}>
-                  {room.name} (capacity: {room.capacity})
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Room + Coordinator + Actions row */}
+          <div className="grid grid-cols-3 gap-5">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Room Assignment</h3>
+              <select
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm shadow-sm"
+                value={booking.room_id ?? ''}
+                onChange={(e) => e.target.value && assignRoom(e.target.value)}
+                disabled={actionLoading}
+              >
+                <option value="">Select a room...</option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.name} (cap: {room.capacity})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Status actions */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <h3 className="mb-3 font-medium text-gray-900">Actions</h3>
-            <div className="flex flex-wrap gap-2">
-              {availableTransitions.map((status) => (
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Coordinator</h3>
+              <select
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm shadow-sm"
+                value={booking.assigned_to ?? ''}
+                onChange={(e) => assignStaff(e.target.value || null)}
+                disabled={actionLoading}
+              >
+                <option value="">Unassigned</option>
+                {staffList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.display_name} ({s.role})
+                  </option>
+                ))}
+              </select>
+              {booking.assigned_staff && (
+                <p className="mt-2 text-[11px] text-gray-400">
+                  Currently: {(booking.assigned_staff as { display_name?: string }).display_name}
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Actions</h3>
+              <div className="flex flex-wrap gap-2">
+                {availableTransitions.map((status) => (
+                  <button
+                    key={status}
+                    className={`btn ${btnStyle[status] ?? 'btn-ghost'}`}
+                    onClick={() => updateStatus(status)}
+                    disabled={actionLoading}
+                  >
+                    {status === 'PLATFORM_ACTIONED' ? 'Mark Actioned' : status.charAt(0) + status.slice(1).toLowerCase().replace('_', ' ')}
+                  </button>
+                ))}
                 <button
-                  key={status}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${
-                    status === 'APPROVED' ? 'bg-blue-600 hover:bg-blue-700' :
-                    status === 'REJECTED' ? 'bg-red-600 hover:bg-red-700' :
-                    status === 'CONFIRMED' ? 'bg-green-600 hover:bg-green-700' :
-                    status === 'CANCELLED' ? 'bg-gray-600 hover:bg-gray-700' :
-                    'bg-indigo-600 hover:bg-indigo-700'
-                  }`}
-                  onClick={() => updateStatus(status)}
+                  className="btn btn-ghost"
+                  onClick={async () => {
+                    setActionLoading(true);
+                    const res = await api.post(`/invoices/from-booking/${id}`, {});
+                    if (res.success) toast('Invoice generated', 'success');
+                    else toast(res.error?.message ?? 'Failed to generate invoice', 'error');
+                    setActionLoading(false);
+                  }}
                   disabled={actionLoading}
                 >
-                  {status === 'PLATFORM_ACTIONED' ? 'Mark Actioned' : status}
+                  Generate Invoice
                 </button>
-              ))}
+              </div>
             </div>
           </div>
 
           {/* Notes */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <h3 className="mb-3 font-medium text-gray-900">Staff Notes</h3>
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Staff Notes</h3>
             {booking.staff_notes && (
-              <pre className="mb-4 whitespace-pre-wrap text-sm text-gray-700">{booking.staff_notes}</pre>
+              <pre className="mb-4 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-700">{booking.staff_notes}</pre>
             )}
             <div className="flex gap-2">
               <input
                 type="text"
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm shadow-sm"
                 placeholder="Add a note..."
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addNote()}
               />
-              <button
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                onClick={addNote}
-                disabled={actionLoading || !note.trim()}
-              >
+              <button className="btn btn-primary" onClick={addNote} disabled={actionLoading || !note.trim()}>
                 Add
               </button>
             </div>
           </div>
         </div>
 
-        {/* Right: Raw email + Audit trail */}
-        <div className="space-y-6">
+        {/* Right: Messaging + Raw email + Audit trail */}
+        <div className="space-y-5 lg:col-span-2">
+          {/* Customer Chat & Messaging */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-400">Customer Communication</h3>
+
+            {/* External chat link */}
+            <div className="mb-4">
+              <label className="text-xs font-medium text-gray-500">External Chat Link</label>
+              <div className="mt-1 flex gap-2">
+                <input
+                  type="url"
+                  placeholder="https://wa.me/44..."
+                  defaultValue={booking.external_chat_link ?? ''}
+                  onBlur={(e) => updateChatLink(e.target.value)}
+                  className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+                />
+                {booking.external_chat_link && (
+                  <a
+                    href={booking.external_chat_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-ghost text-xs"
+                  >
+                    Open
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Send message form */}
+            <div className="border-t border-gray-100 pt-4">
+              <div className="mb-3 flex gap-2">
+                <select
+                  value={msgChannel}
+                  onChange={(e) => setMsgChannel(e.target.value as 'sms' | 'whatsapp')}
+                  className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs"
+                >
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="sms">SMS</option>
+                </select>
+                <input
+                  type="tel"
+                  placeholder="To: +44..."
+                  value={msgTo}
+                  onChange={(e) => setMsgTo(e.target.value)}
+                  className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="flex gap-2">
+                <textarea
+                  placeholder="Type a message..."
+                  value={msgBody}
+                  onChange={(e) => setMsgBody(e.target.value)}
+                  rows={2}
+                  className="flex-1 resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+                />
+                <button
+                  className="btn btn-primary self-end px-4"
+                  onClick={sendMessage}
+                  disabled={sendingMsg || !msgBody.trim() || !msgTo.trim()}
+                >
+                  {sendingMsg ? '...' : 'Send'}
+                </button>
+              </div>
+            </div>
+
+            {/* Message history */}
+            {messages.length > 0 && (
+              <div className="mt-4 max-h-48 space-y-2 overflow-y-auto border-t border-gray-100 pt-3">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`rounded-xl px-3 py-2 text-xs ${
+                      msg.direction === 'outbound'
+                        ? 'ml-4 bg-blue-50 text-blue-800'
+                        : 'mr-4 bg-gray-50 text-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium capitalize">{msg.channel}</span>
+                      <span className="text-[10px] text-gray-400">
+                        {new Date(msg.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="mt-1">{msg.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           {booking.raw_email_r2_key && (
-            <div className="rounded-lg border border-gray-200 bg-white p-6">
-              <h3 className="mb-3 font-medium text-gray-900">Original Email</h3>
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Original Email</h3>
               <iframe
                 src={`/api/bookings/${booking.id}/raw-email`}
                 sandbox=""
-                className="h-96 w-full rounded border border-gray-200"
+                className="h-80 w-full rounded-lg border border-gray-100 bg-gray-50"
                 title="Original booking email"
               />
             </div>
           )}
 
           {/* Audit trail */}
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <h3 className="mb-4 font-medium text-gray-900">Audit Trail</h3>
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-400">Audit Trail</h3>
             {(booking.events ?? []).length === 0 ? (
-              <p className="text-sm text-gray-500">No events recorded yet.</p>
+              <p className="text-sm text-gray-400">No events recorded yet.</p>
             ) : (
               <div className="relative space-y-0">
-                <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gray-200" />
+                <div className="absolute left-[7px] top-3 bottom-3 w-px bg-gray-200" />
                 {(booking.events ?? []).map((event: BookingEventRow & { actor_name?: string }) => {
                   const colors: Record<string, string> = {
-                    RECEIVED: 'bg-gray-400', PARSED: 'bg-blue-400', ASSIGNED: 'bg-indigo-500',
-                    APPROVED: 'bg-green-500', REJECTED: 'bg-red-500', PLATFORM_ACTIONED: 'bg-orange-500',
-                    CONFIRMED: 'bg-green-600', CANCELLED: 'bg-gray-500', NOTE_ADDED: 'bg-yellow-500',
+                    RECEIVED: 'bg-gray-300', PARSED: 'bg-blue-400', ASSIGNED: 'bg-indigo-400',
+                    APPROVED: 'bg-emerald-400', REJECTED: 'bg-red-400', PLATFORM_ACTIONED: 'bg-orange-400',
+                    CONFIRMED: 'bg-emerald-500', CANCELLED: 'bg-gray-400', NOTE_ADDED: 'bg-amber-400',
                   };
                   return (
-                    <div key={event.id} className="relative flex items-start gap-3 py-2 text-sm">
-                      <div className={`mt-1 h-3.5 w-3.5 rounded-full border-2 border-white ${colors[event.event_type] ?? 'bg-gray-400'}`} />
+                    <div key={event.id} className="relative flex items-start gap-3 py-2.5 text-sm">
+                      <div className={`relative z-10 mt-0.5 h-3.5 w-3.5 rounded-full ring-4 ring-white ${colors[event.event_type] ?? 'bg-gray-300'}`} />
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900">{event.event_type.replace('_', ' ')}</p>
-                        <p className="text-xs text-gray-500">
-                          {event.actor_name ?? 'System'} &middot;{' '}
-                          {new Date(event.created_at).toLocaleString()}
+                        <p className="text-xs font-semibold text-gray-800">{event.event_type.replace(/_/g, ' ')}</p>
+                        <p className="text-[11px] text-gray-400">
+                          {event.actor_name ?? 'System'} \u00B7{' '}
+                          {new Date(event.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                     </div>

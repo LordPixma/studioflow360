@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { api } from '../lib/api.ts';
 import type { StaffContext } from '../types.ts';
+import type { Permission } from '@studioflow360/shared';
 
 interface AuthState {
   staff: StaffContext | null;
@@ -41,4 +42,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   return useContext(AuthContext);
+}
+
+export function usePermission(...permissions: Permission[]): boolean {
+  const { staff } = useAuth();
+  if (!staff?.permissions) return false;
+  return permissions.every((p) => staff.permissions.includes(p));
 }

@@ -1,4 +1,5 @@
 import { createMiddleware } from 'hono/factory';
+import { ROLE_PERMISSIONS, type Permission } from '@studioflow360/shared';
 import type { Env, StaffContext } from '../types.js';
 
 type AuthEnv = {
@@ -15,11 +16,11 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
     // In local dev, allow freely; in production, require DEV_AUTH_SECRET
     const isLocalDev = c.env.ENVIRONMENT === 'development';
     const devSecret = c.req.header('X-Dev-Secret');
-    const expectedSecret = (c.env as Record<string, unknown>).DEV_AUTH_SECRET as string | undefined;
+    const expectedSecret = (c.env as unknown as Record<string, unknown>).DEV_AUTH_SECRET as string | undefined;
 
     if (isLocalDev || (expectedSecret && devSecret === expectedSecret)) {
       const staff = await c.env.DB.prepare(
-        'SELECT id, access_email, display_name, role FROM staff_users WHERE access_email = ? AND active = 1',
+        'SELECT id, access_email, display_name, role FROM staff_users WHERE LOWER(access_email) = LOWER(?) AND active = 1',
       )
         .bind(devEmail)
         .first<{ id: string; access_email: string; display_name: string; role: string }>();
@@ -61,7 +62,7 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
 
     // Look up staff user
     const staff = await c.env.DB.prepare(
-      'SELECT id, access_email, display_name, role FROM staff_users WHERE access_email = ? AND active = 1',
+      'SELECT id, access_email, display_name, role FROM staff_users WHERE LOWER(access_email) = LOWER(?) AND active = 1',
     )
       .bind(payload.email)
       .first<{ id: string; access_email: string; display_name: string; role: string }>();
@@ -93,6 +94,21 @@ export const requireRole = (...roles: StaffContext['role'][]) => {
   return createMiddleware<AuthEnv>(async (c, next) => {
     const staff = c.get('staff');
     if (!roles.includes(staff.role)) {
+      return c.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        403,
+      );
+    }
+    return next();
+  });
+};
+
+export const requirePermission = (...permissions: Permission[]) => {
+  return createMiddleware<AuthEnv>(async (c, next) => {
+    const staff = c.get('staff');
+    const rolePerms = ROLE_PERMISSIONS[staff.role] as readonly string[];
+    const hasAll = permissions.every((p) => rolePerms.includes(p));
+    if (!hasAll) {
       return c.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         403,

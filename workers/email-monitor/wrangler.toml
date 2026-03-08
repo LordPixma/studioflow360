@@ -1,0 +1,41 @@
+name = "studioflow360-email-monitor"
+main = "src/index.ts"
+compatibility_date = "2025-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Cron trigger: every 2 minutes
+[triggers]
+crons = ["*/2 * * * *"]
+
+# D1 Database (for platform_email_rules lookup)
+[[d1_databases]]
+binding = "DB"
+database_name = "studioflow360-db"
+database_id = "3a15f1ed-f131-4187-b7df-9660ab689d8b"
+
+# KV for email deduplication (shared with email-worker)
+[[kv_namespaces]]
+binding = "EMAIL_DEDUP"
+id = "53099f02c28247d3b175eb4092482439"
+
+# KV for Graph API state (token cache, poll cursor)
+[[kv_namespaces]]
+binding = "GRAPH_STATE"
+id = "aa1c5de3d6e74ef6b98057b158cddf6b"
+
+# R2 for raw email archival (shared with email-worker)
+[[r2_buckets]]
+binding = "EMAIL_ARCHIVE"
+bucket_name = "studioflow360-emails"
+
+# Queue producer (shared queue)
+[[queues.producers]]
+binding = "BOOKING_PARSE_QUEUE"
+queue = "booking-parse-queue"
+
+# Workers AI (for pre-filtering unknown senders)
+[ai]
+binding = "AI"
+
+# Secrets (set via wrangler secret put):
+# AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_MAILBOX_USER_ID

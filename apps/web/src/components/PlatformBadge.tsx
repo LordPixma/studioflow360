@@ -13,9 +13,10 @@ export function PlatformBadge({ platform }: { platform: Platform }) {
 
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
-      style={{ backgroundColor: color }}
+      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold"
+      style={{ backgroundColor: `${color}18`, color, border: `1px solid ${color}30` }}
     >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
       {platformLabels[platform]}
     </span>
   );
