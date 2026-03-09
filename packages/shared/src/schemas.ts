@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BOOKING_STATUSES, PLATFORMS, EVENT_TYPES, STUDIO_ITEM_CATEGORIES, STUDIO_ITEM_STATUSES, STUDIO_ITEM_PRIORITIES, STUDIO_ITEM_RECURRENCES, GUEST_SOURCES, GUEST_NOTE_TYPES, QUOTE_STATUSES } from './constants.js';
+import { BOOKING_STATUSES, PLATFORMS, EVENT_TYPES, STUDIO_ITEM_CATEGORIES, STUDIO_ITEM_STATUSES, STUDIO_ITEM_PRIORITIES, STUDIO_ITEM_RECURRENCES, GUEST_SOURCES, GUEST_NOTE_TYPES, QUOTE_STATUSES, CONTRACT_STATUSES, SHIFT_TYPES, TIME_OFF_TYPES, TIME_OFF_STATUSES } from './constants.js';
 
 // --- AI Extraction Schema (output from Workers AI) ---
 
@@ -324,6 +324,74 @@ export const CreateQuoteTemplateSchema = z.object({
 
 export const UpdateQuoteTemplateSchema = CreateQuoteTemplateSchema.partial().extend({
   is_active: z.number().int().min(0).max(1).optional(),
+});
+
+// --- Contracts Schemas ---
+
+export const CreateContractSchema = z.object({
+  guest_id: z.string().uuid().optional(),
+  guest_name: z.string().min(1).max(200),
+  guest_email: z.string().email().optional().nullable(),
+  guest_company: z.string().max(200).optional().nullable(),
+  booking_id: z.string().uuid().optional(),
+  quote_id: z.string().uuid().optional(),
+  title: z.string().min(1).max(300).optional(),
+  content: z.string().max(50000).optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  value: z.number().nonnegative().optional(),
+  notes: z.string().max(2000).optional().nullable(),
+  template_id: z.string().uuid().optional(),
+});
+
+export const UpdateContractSchema = z.object({
+  status: z.enum(CONTRACT_STATUSES).optional(),
+  guest_name: z.string().min(1).max(200).optional(),
+  guest_email: z.string().email().optional().nullable(),
+  guest_company: z.string().max(200).optional().nullable(),
+  title: z.string().min(1).max(300).optional(),
+  content: z.string().max(50000).optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  value: z.number().nonnegative().optional(),
+  notes: z.string().max(2000).optional().nullable(),
+  signed_by_name: z.string().max(200).optional(),
+  signed_by_email: z.string().email().optional(),
+});
+
+export const CreateContractTemplateSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(500).optional(),
+  content: z.string().max(50000),
+});
+
+export const UpdateContractTemplateSchema = CreateContractTemplateSchema.partial().extend({
+  is_active: z.number().int().min(0).max(1).optional(),
+});
+
+// --- Scheduling Schemas ---
+
+export const CreateShiftSchema = z.object({
+  staff_id: z.string().uuid(),
+  room_id: z.string().uuid().optional(),
+  shift_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  start_time: z.string().regex(/^\d{2}:\d{2}$/),
+  end_time: z.string().regex(/^\d{2}:\d{2}$/),
+  shift_type: z.enum(SHIFT_TYPES).default('regular'),
+  notes: z.string().max(500).optional(),
+});
+
+export const UpdateShiftSchema = CreateShiftSchema.partial();
+
+export const CreateTimeOffSchema = z.object({
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  request_type: z.enum(TIME_OFF_TYPES).default('holiday'),
+  reason: z.string().max(1000).optional(),
+});
+
+export const ReviewTimeOffSchema = z.object({
+  status: z.enum(TIME_OFF_STATUSES),
 });
 
 // --- Studio Settings Schema ---

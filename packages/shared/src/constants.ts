@@ -77,6 +77,22 @@ export const GUEST_TAG_PRESETS = ['VIP', 'corporate', 'repeat', 'influencer', 'p
 export const QUOTE_STATUSES = ['draft', 'sent', 'viewed', 'accepted', 'declined', 'expired', 'converted'] as const;
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 
+// --- Contracts Constants ---
+
+export const CONTRACT_STATUSES = ['draft', 'sent', 'signed', 'active', 'expired', 'cancelled'] as const;
+export type ContractStatus = (typeof CONTRACT_STATUSES)[number];
+
+// --- Scheduling Constants ---
+
+export const SHIFT_TYPES = ['regular', 'overtime', 'on_call', 'cover'] as const;
+export type ShiftType = (typeof SHIFT_TYPES)[number];
+
+export const TIME_OFF_TYPES = ['holiday', 'sick', 'personal', 'other'] as const;
+export type TimeOffType = (typeof TIME_OFF_TYPES)[number];
+
+export const TIME_OFF_STATUSES = ['pending', 'approved', 'declined'] as const;
+export type TimeOffStatus = (typeof TIME_OFF_STATUSES)[number];
+
 // --- RBAC Permissions ---
 
 export const PERMISSIONS = [
@@ -103,6 +119,10 @@ export const PERMISSIONS = [
   'guests.manage',
   'quotes.view',
   'quotes.create',
+  'contracts.view',
+  'contracts.manage',
+  'scheduling.view',
+  'scheduling.manage',
   'settings.view',
   'settings.manage',
 ] as const;
@@ -122,6 +142,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'invoices.view', 'invoices.create',
     'guests.view', 'guests.manage',
     'quotes.view', 'quotes.create',
+    'contracts.view', 'contracts.manage',
+    'scheduling.view', 'scheduling.manage',
     'settings.view',
   ],
   staff: [
@@ -135,6 +157,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'invoices.view',
     'guests.view',
     'quotes.view',
+    'contracts.view',
+    'scheduling.view',
   ],
 };
 

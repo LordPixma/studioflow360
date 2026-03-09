@@ -1,4 +1,4 @@
-import type { BookingStatus, Platform, EventType, StaffRole, StudioItemCategory, StudioItemStatus, StudioItemPriority, StudioItemRecurrence, GuestSource, GuestNoteType, QuoteStatus } from './constants.js';
+import type { BookingStatus, Platform, EventType, StaffRole, StudioItemCategory, StudioItemStatus, StudioItemPriority, StudioItemRecurrence, GuestSource, GuestNoteType, QuoteStatus, ContractStatus, ShiftType, TimeOffType, TimeOffStatus } from './constants.js';
 
 // --- D1 Row Types ---
 
@@ -321,6 +321,75 @@ export interface QuoteTemplateRow {
   notes: string | null;
   is_active: number;
   created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- Contracts Types ---
+
+export interface ContractRow {
+  id: string;
+  contract_number: string;
+  guest_id: string | null;
+  guest_name: string;
+  guest_email: string | null;
+  guest_company: string | null;
+  booking_id: string | null;
+  quote_id: string | null;
+  title: string;
+  status: ContractStatus;
+  content: string;
+  start_date: string | null;
+  end_date: string | null;
+  value: number;
+  currency: string;
+  signed_at: string | null;
+  signed_by_name: string | null;
+  signed_by_email: string | null;
+  notes: string | null;
+  template_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContractTemplateRow {
+  id: string;
+  name: string;
+  description: string | null;
+  content: string;
+  is_active: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- Scheduling Types ---
+
+export interface StaffShiftRow {
+  id: string;
+  staff_id: string;
+  room_id: string | null;
+  shift_date: string;
+  start_time: string;
+  end_time: string;
+  shift_type: ShiftType;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TimeOffRequestRow {
+  id: string;
+  staff_id: string;
+  request_type: TimeOffType;
+  start_date: string;
+  end_date: string;
+  status: TimeOffStatus;
+  reason: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -16,6 +16,8 @@ import { PublicBookingPage } from './pages/PublicBooking.tsx';
 import { ProfilePage } from './pages/Profile.tsx';
 import { GuestsPage } from './pages/Guests.tsx';
 import { QuotesPage } from './pages/Quotes.tsx';
+import { ContractsPage } from './pages/Contracts.tsx';
+import { SchedulingPage } from './pages/Scheduling.tsx';
 
 function AuthenticatedApp() {
   const { staff, loading, error } = useAuth();
@@ -69,6 +71,8 @@ function AuthenticatedApp() {
         <Route path="/invoices" element={<InvoicesPage />} />
         <Route path="/guests" element={<GuestsPage />} />
         <Route path="/quotes" element={<QuotesPage />} />
+        <Route path="/contracts" element={<ContractsPage />} />
+        <Route path="/scheduling" element={<SchedulingPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
