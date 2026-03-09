@@ -22,6 +22,11 @@ import { TasksPage } from './pages/Tasks.tsx';
 import { InventoryPage } from './pages/Inventory.tsx';
 import { DocumentsPage } from './pages/Documents.tsx';
 import { NotificationsPage } from './pages/Notifications.tsx';
+import { ReportsPage } from './pages/Reports.tsx';
+import { ResourcePlanningPage } from './pages/ResourcePlanning.tsx';
+import { AutomationPage } from './pages/Automation.tsx';
+import { MarketingPage } from './pages/Marketing.tsx';
+import { IntegrationsPage } from './pages/Integrations.tsx';
 
 function AuthenticatedApp() {
   const { staff, loading, error } = useAuth();
@@ -81,6 +86,11 @@ function AuthenticatedApp() {
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/resource-planning" element={<ResourcePlanningPage />} />
+        <Route path="/automation" element={<AutomationPage />} />
+        <Route path="/marketing" element={<MarketingPage />} />
+        <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>

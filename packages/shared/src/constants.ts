@@ -132,6 +132,56 @@ export type CapacityTargetType = (typeof CAPACITY_TARGET_TYPES)[number];
 export const EXPORT_FORMATS = ['csv', 'pdf', 'xlsx'] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 
+// --- Automation Constants ---
+
+export const EMAIL_TEMPLATE_TYPES = ['general', 'booking_confirmation', 'booking_reminder', 'booking_followup', 'quote_sent', 'invoice_sent', 'welcome', 'promotional'] as const;
+export type EmailTemplateType = (typeof EMAIL_TEMPLATE_TYPES)[number];
+
+export const AUTOMATION_TRIGGER_TYPES = [
+  'booking_created', 'booking_approved', 'booking_rejected', 'booking_confirmed', 'booking_cancelled',
+  'booking_stale', 'guest_created', 'task_overdue', 'inventory_low_stock', 'contract_signed',
+  'quote_accepted', 'time_off_approved', 'scheduled',
+] as const;
+export type AutomationTriggerType = (typeof AUTOMATION_TRIGGER_TYPES)[number];
+
+export const AUTOMATION_ACTION_TYPES = [
+  'send_email', 'send_notification', 'create_task', 'update_booking_status',
+  'assign_staff', 'create_invoice', 'webhook', 'log_activity',
+] as const;
+export type AutomationActionType = (typeof AUTOMATION_ACTION_TYPES)[number];
+
+export const AUTOMATION_LOG_STATUSES = ['success', 'failed', 'skipped'] as const;
+export type AutomationLogStatus = (typeof AUTOMATION_LOG_STATUSES)[number];
+
+// --- Marketing & Promotions Constants ---
+
+export const PROMO_TYPES = ['percentage', 'fixed_amount', 'free_hours', 'package'] as const;
+export type PromoType = (typeof PROMO_TYPES)[number];
+
+export const CAMPAIGN_TYPES = ['email', 'sms', 'in_app'] as const;
+export type CampaignType = (typeof CAMPAIGN_TYPES)[number];
+
+export const CAMPAIGN_STATUSES = ['draft', 'scheduled', 'sending', 'sent', 'cancelled'] as const;
+export type CampaignStatus = (typeof CAMPAIGN_STATUSES)[number];
+
+// --- Integrations Constants ---
+
+export const INTEGRATION_TYPES = ['google_calendar', 'outlook', 'stripe', 'xero', 'quickbooks', 'slack', 'zapier', 'custom_webhook'] as const;
+export type IntegrationType = (typeof INTEGRATION_TYPES)[number];
+
+export const INTEGRATION_STATUSES = ['inactive', 'active', 'error', 'pending'] as const;
+export type IntegrationStatus = (typeof INTEGRATION_STATUSES)[number];
+
+export const WEBHOOK_EVENT_TYPES = [
+  'booking.created', 'booking.updated', 'booking.approved', 'booking.cancelled',
+  'guest.created', 'guest.updated', 'invoice.created', 'invoice.paid',
+  'task.created', 'task.completed', 'contract.signed',
+] as const;
+export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
+
+export const WEBHOOK_LOG_STATUSES = ['pending', 'success', 'failed', 'retrying'] as const;
+export type WebhookLogStatus = (typeof WEBHOOK_LOG_STATUSES)[number];
+
 // --- Documents Constants ---
 
 export const DOCUMENT_CATEGORIES = ['contract', 'invoice', 'receipt', 'photo', 'certificate', 'insurance', 'floor_plan', 'rider', 'release_form', 'other'] as const;

@@ -1,4 +1,4 @@
-import type { BookingStatus, Platform, EventType, StaffRole, StudioItemCategory, StudioItemStatus, StudioItemPriority, StudioItemRecurrence, GuestSource, GuestNoteType, QuoteStatus, ContractStatus, ShiftType, TimeOffType, TimeOffStatus, TaskCategory, TaskStatus, TaskPriority, TaskRecurrence, InventoryCategory, InventoryUnit, InventoryTransactionType, DocumentCategory, NotificationType, ActivityEntityType, ReportType, ReportSchedule, CapacityTargetType, ExportFormat } from './constants.js';
+import type { BookingStatus, Platform, EventType, StaffRole, StudioItemCategory, StudioItemStatus, StudioItemPriority, StudioItemRecurrence, GuestSource, GuestNoteType, QuoteStatus, ContractStatus, ShiftType, TimeOffType, TimeOffStatus, TaskCategory, TaskStatus, TaskPriority, TaskRecurrence, InventoryCategory, InventoryUnit, InventoryTransactionType, DocumentCategory, NotificationType, ActivityEntityType, ReportType, ReportSchedule, CapacityTargetType, ExportFormat, EmailTemplateType, AutomationTriggerType, AutomationActionType, AutomationLogStatus, PromoType, CampaignType, CampaignStatus, IntegrationType, IntegrationStatus, WebhookLogStatus } from './constants.js';
 
 // --- D1 Row Types ---
 
@@ -585,4 +585,161 @@ export interface StudioSettingsRow {
   invoice_due_days: number;
   updated_at: string;
   updated_by: string | null;
+}
+
+// --- Automation Types ---
+
+export interface EmailTemplateRow {
+  id: string;
+  name: string;
+  subject: string;
+  body_html: string;
+  body_text: string | null;
+  template_type: EmailTemplateType;
+  variables: string; // JSON array
+  is_active: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutomationRuleRow {
+  id: string;
+  name: string;
+  description: string | null;
+  trigger_type: AutomationTriggerType;
+  trigger_config: string; // JSON
+  action_type: AutomationActionType;
+  action_config: string; // JSON
+  email_template_id: string | null;
+  is_active: number;
+  run_count: number;
+  last_run_at: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutomationLogRow {
+  id: string;
+  rule_id: string;
+  trigger_type: AutomationTriggerType;
+  action_type: AutomationActionType;
+  entity_type: string | null;
+  entity_id: string | null;
+  status: AutomationLogStatus;
+  details: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+// --- Marketing & Promotions Types ---
+
+export interface PromotionRow {
+  id: string;
+  name: string;
+  description: string | null;
+  promo_type: PromoType;
+  discount_value: number;
+  min_booking_value: number | null;
+  max_discount: number | null;
+  valid_from: string;
+  valid_to: string | null;
+  usage_limit: number | null;
+  times_used: number;
+  applicable_rooms: string; // JSON array
+  applicable_platforms: string; // JSON array
+  is_active: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PromoCodeRow {
+  id: string;
+  promotion_id: string;
+  code: string;
+  max_uses: number | null;
+  times_used: number;
+  is_active: number;
+  created_at: string;
+}
+
+export interface MarketingCampaignRow {
+  id: string;
+  name: string;
+  description: string | null;
+  campaign_type: CampaignType;
+  status: CampaignStatus;
+  target_audience: string; // JSON
+  content: string | null;
+  subject: string | null;
+  email_template_id: string | null;
+  promotion_id: string | null;
+  scheduled_at: string | null;
+  sent_at: string | null;
+  recipients_count: number;
+  opened_count: number;
+  clicked_count: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GuestPortalConfigRow {
+  id: string;
+  welcome_message: string | null;
+  booking_instructions: string | null;
+  cancellation_policy: string | null;
+  faq: string; // JSON array
+  custom_css: string | null;
+  show_pricing: number;
+  show_availability: number;
+  require_approval: number;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+// --- Integrations Types ---
+
+export interface IntegrationRow {
+  id: string;
+  name: string;
+  integration_type: IntegrationType;
+  status: IntegrationStatus;
+  config: string; // JSON
+  credentials: string; // JSON
+  last_sync_at: string | null;
+  sync_error: string | null;
+  is_active: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookEndpointRow {
+  id: string;
+  name: string;
+  url: string;
+  secret: string | null;
+  events: string; // JSON array
+  is_active: number;
+  last_triggered_at: string | null;
+  failure_count: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookLogRow {
+  id: string;
+  endpoint_id: string;
+  event_type: string;
+  payload: string | null;
+  response_status: number | null;
+  response_body: string | null;
+  duration_ms: number | null;
+  status: WebhookLogStatus;
+  error: string | null;
+  created_at: string;
 }

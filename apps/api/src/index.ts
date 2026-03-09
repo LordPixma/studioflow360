@@ -24,6 +24,11 @@ import tasksRoute from './routes/tasks.js';
 import inventoryRoute from './routes/inventory.js';
 import documentsRoute from './routes/documents.js';
 import notificationsRoute from './routes/notifications.js';
+import reportsRoute from './routes/reports.js';
+import resourcePlanningRoute from './routes/resource-planning.js';
+import automationRoute from './routes/automation.js';
+import marketingRoute from './routes/marketing.js';
+import integrationsRoute from './routes/integrations.js';
 import { ROLE_PERMISSIONS } from '@studioflow360/shared';
 import type { Env, StaffContext } from './types.js';
 
@@ -156,6 +161,26 @@ app.route('/api/documents', documentsRoute);
 
 // Notifications routes — available to all authenticated (user sees own)
 app.route('/api/notifications', notificationsRoute);
+
+// Reports routes — require analytics permissions
+app.use('/api/reports/*', requirePermission('analytics.view'));
+app.route('/api/reports', reportsRoute);
+
+// Resource Planning routes — require analytics permissions
+app.use('/api/resource-planning/*', requirePermission('analytics.view'));
+app.route('/api/resource-planning', resourcePlanningRoute);
+
+// Automation routes — require settings.manage permission
+app.use('/api/automation/*', requirePermission('settings.manage'));
+app.route('/api/automation', automationRoute);
+
+// Marketing routes — require settings.manage permission
+app.use('/api/marketing/*', requirePermission('settings.manage'));
+app.route('/api/marketing', marketingRoute);
+
+// Integrations routes — require settings.manage permission
+app.use('/api/integrations/*', requirePermission('settings.manage'));
+app.route('/api/integrations', integrationsRoute);
 
 // Staff routes — /api/me is available to all authenticated
 app.get('/api/me', async (c) => {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BOOKING_STATUSES, PLATFORMS, EVENT_TYPES, STUDIO_ITEM_CATEGORIES, STUDIO_ITEM_STATUSES, STUDIO_ITEM_PRIORITIES, STUDIO_ITEM_RECURRENCES, GUEST_SOURCES, GUEST_NOTE_TYPES, QUOTE_STATUSES, CONTRACT_STATUSES, SHIFT_TYPES, TIME_OFF_TYPES, TIME_OFF_STATUSES, TASK_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, TASK_RECURRENCES, INVENTORY_CATEGORIES, INVENTORY_UNITS, INVENTORY_TRANSACTION_TYPES, DOCUMENT_CATEGORIES, NOTIFICATION_TYPES, ACTIVITY_ENTITY_TYPES } from './constants.js';
+import { BOOKING_STATUSES, PLATFORMS, EVENT_TYPES, STUDIO_ITEM_CATEGORIES, STUDIO_ITEM_STATUSES, STUDIO_ITEM_PRIORITIES, STUDIO_ITEM_RECURRENCES, GUEST_SOURCES, GUEST_NOTE_TYPES, QUOTE_STATUSES, CONTRACT_STATUSES, SHIFT_TYPES, TIME_OFF_TYPES, TIME_OFF_STATUSES, TASK_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, TASK_RECURRENCES, INVENTORY_CATEGORIES, INVENTORY_UNITS, INVENTORY_TRANSACTION_TYPES, DOCUMENT_CATEGORIES, NOTIFICATION_TYPES, ACTIVITY_ENTITY_TYPES, REPORT_TYPES, REPORT_SCHEDULES, CAPACITY_TARGET_TYPES, EMAIL_TEMPLATE_TYPES, AUTOMATION_TRIGGER_TYPES, AUTOMATION_ACTION_TYPES, PROMO_TYPES, CAMPAIGN_TYPES, CAMPAIGN_STATUSES, INTEGRATION_TYPES, INTEGRATION_STATUSES, WEBHOOK_EVENT_TYPES } from './constants.js';
 
 // --- AI Extraction Schema (output from Workers AI) ---
 
@@ -505,6 +505,36 @@ export const CreateNotificationSchema = z.object({
   entity_id: z.string().uuid().optional().nullable(),
 });
 
+// --- Reports & Resource Planning Schemas ---
+
+export const CreateSavedReportSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional().nullable(),
+  report_type: z.enum(REPORT_TYPES),
+  filters: z.record(z.string(), z.unknown()).optional(),
+  schedule: z.enum(REPORT_SCHEDULES).optional().nullable(),
+  is_pinned: z.number().int().min(0).max(1).optional(),
+});
+
+export const UpdateSavedReportSchema = CreateSavedReportSchema.partial();
+
+export const CreateCapacityTargetSchema = z.object({
+  room_id: z.string().uuid(),
+  target_type: z.enum(CAPACITY_TARGET_TYPES),
+  target_value: z.number().positive(),
+  effective_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  effective_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+});
+
+export const ReportQuerySchema = z.object({
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  room_id: z.string().uuid().optional(),
+  platform: z.enum(PLATFORMS).optional(),
+  group_by: z.enum(['day', 'week', 'month'] as const).optional(),
+  format: z.enum(['json', 'csv'] as const).optional(),
+});
+
 // --- Studio Settings Schema ---
 
 export const UpdateStudioSettingsSchema = z.object({
@@ -520,4 +550,110 @@ export const UpdateStudioSettingsSchema = z.object({
   invoice_tax_rate: z.number().min(0).max(100).optional(),
   invoice_currency: z.string().length(3).optional(),
   invoice_due_days: z.number().int().min(1).max(365).optional(),
+});
+
+// --- Automation Schemas ---
+
+export const CreateEmailTemplateSchema = z.object({
+  name: z.string().min(1).max(200),
+  subject: z.string().min(1).max(500),
+  body_html: z.string().min(1).max(50000),
+  body_text: z.string().max(50000).optional().nullable(),
+  template_type: z.enum(EMAIL_TEMPLATE_TYPES).default('general'),
+  variables: z.array(z.string().max(100)).optional(),
+});
+
+export const UpdateEmailTemplateSchema = CreateEmailTemplateSchema.partial().extend({
+  is_active: z.number().int().min(0).max(1).optional(),
+});
+
+export const CreateAutomationRuleSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional().nullable(),
+  trigger_type: z.enum(AUTOMATION_TRIGGER_TYPES),
+  trigger_config: z.record(z.string(), z.unknown()).optional(),
+  action_type: z.enum(AUTOMATION_ACTION_TYPES),
+  action_config: z.record(z.string(), z.unknown()).optional(),
+  email_template_id: z.string().uuid().optional().nullable(),
+  is_active: z.number().int().min(0).max(1).optional(),
+});
+
+export const UpdateAutomationRuleSchema = CreateAutomationRuleSchema.partial();
+
+// --- Marketing & Promotions Schemas ---
+
+export const CreatePromotionSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional().nullable(),
+  promo_type: z.enum(PROMO_TYPES).default('percentage'),
+  discount_value: z.number().min(0),
+  min_booking_value: z.number().min(0).optional().nullable(),
+  max_discount: z.number().min(0).optional().nullable(),
+  valid_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  valid_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  usage_limit: z.number().int().min(1).optional().nullable(),
+  applicable_rooms: z.array(z.string().uuid()).optional(),
+  applicable_platforms: z.array(z.enum(PLATFORMS)).optional(),
+});
+
+export const UpdatePromotionSchema = CreatePromotionSchema.partial().extend({
+  is_active: z.number().int().min(0).max(1).optional(),
+});
+
+export const CreatePromoCodeSchema = z.object({
+  promotion_id: z.string().uuid(),
+  code: z.string().min(3).max(30).regex(/^[A-Z0-9_-]+$/),
+  max_uses: z.number().int().min(1).optional().nullable(),
+});
+
+export const CreateCampaignSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional().nullable(),
+  campaign_type: z.enum(CAMPAIGN_TYPES).default('email'),
+  target_audience: z.record(z.string(), z.unknown()).optional(),
+  content: z.string().max(50000).optional().nullable(),
+  subject: z.string().max(500).optional().nullable(),
+  email_template_id: z.string().uuid().optional().nullable(),
+  promotion_id: z.string().uuid().optional().nullable(),
+  scheduled_at: z.string().optional().nullable(),
+});
+
+export const UpdateCampaignSchema = CreateCampaignSchema.partial().extend({
+  status: z.enum(CAMPAIGN_STATUSES).optional(),
+});
+
+export const UpdateGuestPortalSchema = z.object({
+  welcome_message: z.string().max(2000).optional().nullable(),
+  booking_instructions: z.string().max(2000).optional().nullable(),
+  cancellation_policy: z.string().max(5000).optional().nullable(),
+  faq: z.array(z.object({ question: z.string(), answer: z.string() })).optional(),
+  custom_css: z.string().max(10000).optional().nullable(),
+  show_pricing: z.number().int().min(0).max(1).optional(),
+  show_availability: z.number().int().min(0).max(1).optional(),
+  require_approval: z.number().int().min(0).max(1).optional(),
+});
+
+// --- Integrations Schemas ---
+
+export const CreateIntegrationSchema = z.object({
+  name: z.string().min(1).max(200),
+  integration_type: z.enum(INTEGRATION_TYPES),
+  config: z.record(z.string(), z.unknown()).optional(),
+  credentials: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const UpdateIntegrationSchema = CreateIntegrationSchema.partial().extend({
+  status: z.enum(INTEGRATION_STATUSES).optional(),
+  is_active: z.number().int().min(0).max(1).optional(),
+});
+
+export const CreateWebhookEndpointSchema = z.object({
+  name: z.string().min(1).max(200),
+  url: z.string().url().max(1000),
+  secret: z.string().max(200).optional().nullable(),
+  events: z.array(z.enum(WEBHOOK_EVENT_TYPES)).min(1),
+});
+
+export const UpdateWebhookEndpointSchema = CreateWebhookEndpointSchema.partial().extend({
+  is_active: z.number().int().min(0).max(1).optional(),
 });
