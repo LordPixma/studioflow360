@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BOOKING_STATUSES, PLATFORMS, EVENT_TYPES, STUDIO_ITEM_CATEGORIES, STUDIO_ITEM_STATUSES, STUDIO_ITEM_PRIORITIES, STUDIO_ITEM_RECURRENCES } from './constants.js';
+import { BOOKING_STATUSES, PLATFORMS, EVENT_TYPES, STUDIO_ITEM_CATEGORIES, STUDIO_ITEM_STATUSES, STUDIO_ITEM_PRIORITIES, STUDIO_ITEM_RECURRENCES, GUEST_SOURCES, GUEST_NOTE_TYPES, QUOTE_STATUSES } from './constants.js';
 
 // --- AI Extraction Schema (output from Workers AI) ---
 
@@ -245,4 +245,100 @@ export const SendMessageSchema = z.object({
 export const UpdateBookingChatSchema = z.object({
   external_chat_link: z.string().url().optional().nullable(),
   coordinator_phone: z.string().max(20).optional().nullable(),
+});
+
+// --- CRM Schemas ---
+
+export const CreateGuestSchema = z.object({
+  name: z.string().min(1).max(200),
+  email: z.string().email().optional().nullable(),
+  phone: z.string().max(30).optional().nullable(),
+  company: z.string().max(200).optional().nullable(),
+  address: z.string().max(500).optional().nullable(),
+  tags: z.array(z.string().max(50)).optional(),
+  source: z.enum(GUEST_SOURCES).optional(),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+export const UpdateGuestSchema = CreateGuestSchema.partial();
+
+export const CreateGuestNoteSchema = z.object({
+  note_type: z.enum(GUEST_NOTE_TYPES).default('note'),
+  content: z.string().min(1).max(5000),
+});
+
+export const LinkGuestBookingSchema = z.object({
+  booking_id: z.string().uuid(),
+});
+
+// --- Quotes Schemas ---
+
+export const QuoteLineItemInputSchema = z.object({
+  description: z.string().min(1),
+  quantity: z.number().positive(),
+  unit_price: z.number().nonnegative(),
+  total: z.number().nonnegative(),
+});
+
+export const CreateQuoteSchema = z.object({
+  guest_id: z.string().uuid().optional(),
+  guest_name: z.string().min(1).max(200),
+  guest_email: z.string().email().optional().nullable(),
+  guest_company: z.string().max(200).optional().nullable(),
+  guest_address: z.string().max(500).optional().nullable(),
+  booking_id: z.string().uuid().optional(),
+  title: z.string().min(1).max(300).optional(),
+  line_items: z.array(QuoteLineItemInputSchema).min(1),
+  discount_percent: z.number().min(0).max(100).optional(),
+  tax_rate: z.number().min(0).max(100).default(20),
+  valid_until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  notes: z.string().max(2000).optional().nullable(),
+  terms: z.string().max(5000).optional().nullable(),
+  template_id: z.string().uuid().optional(),
+});
+
+export const UpdateQuoteSchema = z.object({
+  status: z.enum(QUOTE_STATUSES).optional(),
+  guest_name: z.string().min(1).max(200).optional(),
+  guest_email: z.string().email().optional().nullable(),
+  guest_company: z.string().max(200).optional().nullable(),
+  guest_address: z.string().max(500).optional().nullable(),
+  title: z.string().min(1).max(300).optional(),
+  line_items: z.array(QuoteLineItemInputSchema).min(1).optional(),
+  discount_percent: z.number().min(0).max(100).optional(),
+  tax_rate: z.number().min(0).max(100).optional(),
+  valid_until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+  terms: z.string().max(5000).optional().nullable(),
+});
+
+export const CreateQuoteTemplateSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(500).optional(),
+  line_items: z.array(QuoteLineItemInputSchema).min(1),
+  discount_percent: z.number().min(0).max(100).optional(),
+  tax_rate: z.number().min(0).max(100).default(20),
+  terms: z.string().max(5000).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+export const UpdateQuoteTemplateSchema = CreateQuoteTemplateSchema.partial().extend({
+  is_active: z.number().int().min(0).max(1).optional(),
+});
+
+// --- Studio Settings Schema ---
+
+export const UpdateStudioSettingsSchema = z.object({
+  studio_name: z.string().min(1).max(200).optional(),
+  studio_subtitle: z.string().max(300).optional().nullable(),
+  studio_address: z.string().max(500).optional().nullable(),
+  studio_email: z.string().email().optional().nullable(),
+  studio_phone: z.string().max(30).optional().nullable(),
+  studio_website: z.string().max(300).optional().nullable(),
+  invoice_payment_terms: z.string().max(1000).optional().nullable(),
+  invoice_bank_details: z.string().max(1000).optional().nullable(),
+  invoice_notes: z.string().max(2000).optional().nullable(),
+  invoice_tax_rate: z.number().min(0).max(100).optional(),
+  invoice_currency: z.string().length(3).optional(),
+  invoice_due_days: z.number().int().min(1).max(365).optional(),
 });

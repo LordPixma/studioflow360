@@ -1,4 +1,4 @@
-import type { BookingStatus, Platform, EventType, StaffRole, StudioItemCategory, StudioItemStatus, StudioItemPriority, StudioItemRecurrence } from './constants.js';
+import type { BookingStatus, Platform, EventType, StaffRole, StudioItemCategory, StudioItemStatus, StudioItemPriority, StudioItemRecurrence, GuestSource, GuestNoteType, QuoteStatus } from './constants.js';
 
 // --- D1 Row Types ---
 
@@ -232,4 +232,114 @@ export interface InvoiceRow {
   created_by: string;
   created_at: string;
   updated_at: string;
+}
+
+// --- CRM Types ---
+
+export interface GuestRow {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  address: string | null;
+  tags: string; // JSON array of tag strings
+  source: GuestSource;
+  total_bookings: number;
+  total_revenue: number;
+  last_booking_date: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GuestNoteRow {
+  id: string;
+  guest_id: string;
+  note_type: GuestNoteType;
+  content: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface GuestBookingLink {
+  guest_id: string;
+  booking_id: string;
+  linked_at: string;
+}
+
+// --- Quotes Types ---
+
+export interface QuoteRow {
+  id: string;
+  quote_number: string;
+  guest_id: string | null;
+  guest_name: string;
+  guest_email: string | null;
+  guest_company: string | null;
+  guest_address: string | null;
+  booking_id: string | null;
+  title: string;
+  status: QuoteStatus;
+  subtotal: number;
+  discount_percent: number;
+  discount_amount: number;
+  tax_rate: number;
+  tax_amount: number;
+  total: number;
+  currency: string;
+  valid_until: string | null;
+  accepted_at: string | null;
+  converted_invoice_id: string | null;
+  notes: string | null;
+  terms: string | null;
+  template_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuoteLineItemRow {
+  id: string;
+  quote_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  sort_order: number;
+}
+
+export interface QuoteTemplateRow {
+  id: string;
+  name: string;
+  description: string | null;
+  line_items: string; // JSON
+  discount_percent: number;
+  tax_rate: number;
+  terms: string | null;
+  notes: string | null;
+  is_active: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StudioSettingsRow {
+  id: string;
+  studio_name: string;
+  studio_subtitle: string | null;
+  studio_address: string | null;
+  studio_email: string | null;
+  studio_phone: string | null;
+  studio_website: string | null;
+  logo_r2_key: string | null;
+  invoice_payment_terms: string | null;
+  invoice_bank_details: string | null;
+  invoice_notes: string | null;
+  invoice_tax_rate: number;
+  invoice_currency: string;
+  invoice_due_days: number;
+  updated_at: string;
+  updated_by: string | null;
 }

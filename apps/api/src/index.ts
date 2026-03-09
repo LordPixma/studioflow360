@@ -15,6 +15,9 @@ import assets from './routes/assets.js';
 import invoicesRoute from './routes/invoices.js';
 import profileRoute from './routes/profile.js';
 import messagingRoute from './routes/messaging.js';
+import settingsRoute from './routes/settings.js';
+import guestsRoute from './routes/guests.js';
+import quotesRoute from './routes/quotes.js';
 import { ROLE_PERMISSIONS } from '@studioflow360/shared';
 import type { Env, StaffContext } from './types.js';
 
@@ -117,6 +120,14 @@ app.route('/api/assets', assets);
 app.use('/api/invoices/*', requirePermission('invoices.view'));
 app.route('/api/invoices', invoicesRoute);
 
+// CRM / Guests routes — require guests permissions
+app.use('/api/guests/*', requirePermission('guests.view'));
+app.route('/api/guests', guestsRoute);
+
+// Quotes routes — require quotes permissions
+app.use('/api/quotes/*', requirePermission('quotes.view'));
+app.route('/api/quotes', quotesRoute);
+
 // Staff routes — /api/me is available to all authenticated
 app.get('/api/me', async (c) => {
   const staffUser = c.get('staff');
@@ -144,6 +155,9 @@ app.route('/api/me/profile', profileRoute);
 
 // Messaging routes
 app.route('/api/messaging', messagingRoute);
+
+// Settings routes — settings.view permission is checked in the page, but studio settings are readable by all staff
+app.route('/api/settings', settingsRoute);
 
 // /api/staff/list — all authenticated users can see active staff (for assignment dropdowns)
 app.get('/api/staff/list', async (c) => {

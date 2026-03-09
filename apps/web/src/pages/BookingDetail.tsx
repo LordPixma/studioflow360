@@ -395,7 +395,7 @@ export function BookingDetailPage() {
                     onClick={() => updateStatus(status)}
                     disabled={actionLoading}
                   >
-                    {status === 'PLATFORM_ACTIONED' ? 'Mark Actioned' : status.charAt(0) + status.slice(1).toLowerCase().replace('_', ' ')}
+                    {status === 'PLATFORM_ACTIONED' ? 'Mark Actioned' : status === 'PENDING' && booking.status === 'APPROVED' ? 'Unapprove' : status.charAt(0) + status.slice(1).toLowerCase().replace('_', ' ')}
                   </button>
                 ))}
                 {booking.raw_email_r2_key && (

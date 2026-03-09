@@ -62,6 +62,26 @@ class ApiClient {
   delete<T>(path: string): Promise<ApiResponse<T>> {
     return this.request<T>(path, { method: 'DELETE' });
   }
+
+  async upload<T>(path: string, formData: FormData): Promise<ApiResponse<T>> {
+    const url = `${API_BASE}${path}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+
+    if (response.status === 401) {
+      window.location.reload();
+      throw new Error('Unauthorized');
+    }
+
+    const data = await response.json() as Record<string, unknown>;
+    if (!response.ok && data.success === undefined) {
+      return { success: false, error: { code: 'UPLOAD_ERROR', message: typeof data.error === 'string' ? data.error : 'Upload failed' } } as ApiResponse<T>;
+    }
+    return data as unknown as ApiResponse<T>;
+  }
 }
 
 export const api = new ApiClient();

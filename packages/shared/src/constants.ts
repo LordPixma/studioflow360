@@ -25,6 +25,7 @@ export const EVENT_TYPES = [
   'NOTE_ADDED',
   'PLATFORM_ACTIONED',
   'EDITED',
+  'UNAPPROVED',
 ] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];
@@ -36,7 +37,7 @@ export type StaffRole = (typeof STAFF_ROLES)[number];
 export const VALID_STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   PENDING: ['APPROVED', 'REJECTED'],
   NEEDS_REVIEW: ['PENDING', 'APPROVED', 'REJECTED'],
-  APPROVED: ['PLATFORM_ACTIONED', 'CANCELLED'],
+  APPROVED: ['PENDING', 'PLATFORM_ACTIONED', 'CANCELLED'],
   REJECTED: [],
   PLATFORM_ACTIONED: ['CONFIRMED', 'CANCELLED'],
   CONFIRMED: ['CANCELLED'],
@@ -61,6 +62,21 @@ export type StudioItemRecurrence = (typeof STUDIO_ITEM_RECURRENCES)[number];
 
 export const STALE_APPROVAL_HOURS = 2;
 
+// --- CRM Constants ---
+
+export const GUEST_SOURCES = ['booking', 'manual', 'import'] as const;
+export type GuestSource = (typeof GUEST_SOURCES)[number];
+
+export const GUEST_NOTE_TYPES = ['note', 'call', 'email', 'meeting', 'follow_up'] as const;
+export type GuestNoteType = (typeof GUEST_NOTE_TYPES)[number];
+
+export const GUEST_TAG_PRESETS = ['VIP', 'corporate', 'repeat', 'influencer', 'production', 'photography', 'music', 'podcast', 'event'] as const;
+
+// --- Quotes Constants ---
+
+export const QUOTE_STATUSES = ['draft', 'sent', 'viewed', 'accepted', 'declined', 'expired', 'converted'] as const;
+export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
+
 // --- RBAC Permissions ---
 
 export const PERMISSIONS = [
@@ -83,6 +99,10 @@ export const PERMISSIONS = [
   'assets.manage',
   'invoices.view',
   'invoices.create',
+  'guests.view',
+  'guests.manage',
+  'quotes.view',
+  'quotes.create',
   'settings.view',
   'settings.manage',
 ] as const;
@@ -100,6 +120,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'finance.view', 'finance.manage',
     'assets.view', 'assets.manage',
     'invoices.view', 'invoices.create',
+    'guests.view', 'guests.manage',
+    'quotes.view', 'quotes.create',
     'settings.view',
   ],
   staff: [
@@ -111,6 +133,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'finance.view',
     'assets.view',
     'invoices.view',
+    'guests.view',
+    'quotes.view',
   ],
 };
 

@@ -222,6 +222,9 @@ bookings.patch('/:id/status', zValidator('json', UpdateBookingStatusSchema), asy
   if (newStatus === 'APPROVED') {
     updates.push('approved_at = ?', 'approved_by = ?');
     updateParams.push(now, staff.id);
+  } else if (newStatus === 'PENDING' && booking.status === 'APPROVED') {
+    // Unapprove: clear approval fields
+    updates.push('approved_at = NULL', 'approved_by = NULL');
   }
 
   updateParams.push(id);
@@ -231,10 +234,11 @@ bookings.patch('/:id/status', zValidator('json', UpdateBookingStatusSchema), asy
     .run();
 
   // Insert audit event
+  const eventType = (newStatus === 'PENDING' && booking.status === 'APPROVED') ? 'UNAPPROVED' : newStatus;
   await c.env.DB.prepare(
     'INSERT INTO booking_events (id, booking_id, event_type, actor_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)',
   )
-    .bind(generateId(), id, newStatus, staff.id, JSON.stringify({ from: booking.status, to: newStatus }), now)
+    .bind(generateId(), id, eventType, staff.id, JSON.stringify({ from: booking.status, to: newStatus }), now)
     .run();
 
   await broadcastUpdate(c.env, id, 'BOOKING_UPDATED');

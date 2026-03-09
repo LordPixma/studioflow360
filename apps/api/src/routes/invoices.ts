@@ -204,4 +204,271 @@ invoices.post('/from-booking/:bookingId', async (c) => {
   return c.json({ success: true, data: { id, invoice_number: invoiceNumber } }, 201);
 });
 
+// DELETE /api/invoices/:id - Delete an invoice (only drafts)
+invoices.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  const invoice = await c.env.DB.prepare('SELECT id, status FROM invoices WHERE id = ?').bind(id).first<{ id: string; status: string }>();
+  if (!invoice) return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Invoice not found' } }, 404);
+  if (invoice.status !== 'draft') return c.json({ success: false, error: { code: 'BAD_REQUEST', message: 'Only draft invoices can be deleted' } }, 400);
+  await c.env.DB.prepare('DELETE FROM invoices WHERE id = ?').bind(id).run();
+  return c.json({ success: true });
+});
+
+// GET /api/invoices/:id/download - Download invoice as printable HTML
+invoices.get('/:id/download', async (c) => {
+  const id = c.req.param('id');
+  const [invoiceResult, settingsResult] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT i.*, sc.display_name as creator_name
+       FROM invoices i
+       LEFT JOIN staff_users sc ON i.created_by = sc.id
+       WHERE i.id = ?`,
+    ).bind(id).first<InvoiceRow & { creator_name: string | null }>(),
+    c.env.DB.prepare('SELECT * FROM studio_settings WHERE id = ?').bind('default').first<StudioSettings>(),
+  ]);
+
+  const invoice = invoiceResult;
+  if (!invoice) return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Invoice not found' } }, 404);
+
+  const s = settingsResult ?? { studio_name: 'Aeras', studio_subtitle: 'Leeds Content Creation Studios', studio_address: 'Leeds City Centre, UK', studio_email: null, studio_phone: null, studio_website: null, logo_r2_key: null, invoice_payment_terms: null, invoice_bank_details: null, invoice_notes: null };
+  const lineItems = JSON.parse(invoice.line_items) as { description: string; quantity: number; unit_price: number; total: number }[];
+
+  // Build logo HTML: use uploaded logo if exists, otherwise fallback SVG
+  let logoHtml: string;
+  if (s.logo_r2_key) {
+    logoHtml = `<img class="logo-icon" src="/api/settings/studio/logo" alt="${escapeHtml(s.studio_name)}" />`;
+  } else {
+    logoHtml = `<svg class="logo-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+              <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3B82F6"/><stop offset="100%" stop-color="#6366F1"/></linearGradient></defs>
+              <rect width="512" height="512" rx="96" fill="url(#g)"/>
+              <path d="M156 370V256l100-110 100 110v114" stroke="white" stroke-width="36" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              <path d="M206 370V290h100v80" stroke="white" stroke-width="36" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              <circle cx="256" cy="200" r="20" fill="white"/>
+            </svg>`;
+  }
+
+  const statusLabel: Record<string, string> = {
+    draft: 'DRAFT', sent: 'AWAITING PAYMENT', paid: 'PAID', overdue: 'OVERDUE', cancelled: 'CANCELLED', refunded: 'REFUNDED',
+  };
+  const statusColor: Record<string, string> = {
+    draft: '#6b7280', sent: '#2563eb', paid: '#059669', overdue: '#dc2626', cancelled: '#6b7280', refunded: '#d97706',
+  };
+
+  const currency = invoice.currency === 'GBP' ? '\u00A3' : invoice.currency === 'USD' ? '$' : invoice.currency === 'EUR' ? '\u20AC' : invoice.currency;
+  const studioName = escapeHtml(s.studio_name);
+  const studioSub = s.studio_subtitle ? escapeHtml(s.studio_subtitle) : '';
+  const studioAddr = s.studio_address ? escapeHtml(s.studio_address) : '';
+
+  // Combine notes: invoice-specific + studio default
+  const allNotes: string[] = [];
+  if (invoice.notes) allNotes.push(escapeHtml(invoice.notes));
+  if (s.invoice_payment_terms) allNotes.push(escapeHtml(s.invoice_payment_terms));
+  if (s.invoice_bank_details) allNotes.push(escapeHtml(s.invoice_bank_details));
+  if (s.invoice_notes) allNotes.push(escapeHtml(s.invoice_notes));
+
+  const footerParts = [studioName];
+  if (studioSub) footerParts.push(studioSub);
+  if (studioAddr) footerParts.push(studioAddr);
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${invoice.invoice_number} - ${studioName}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    @page { size: A4; margin: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #111827; background: #f9fafb; }
+    .page { max-width: 800px; margin: 0 auto; background: #fff; min-height: 100vh; }
+    .toolbar { background: #111827; color: #fff; padding: 12px 32px; display: flex; align-items: center; justify-content: space-between; }
+    .toolbar button { background: #fff; color: #111827; border: none; padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .toolbar button:hover { background: #e5e7eb; }
+    .content { padding: 48px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
+    .logo { display: flex; align-items: center; gap: 14px; }
+    .logo-icon { width: 44px; height: 44px; border-radius: 10px; object-fit: contain; }
+    .brand { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; color: #111827; }
+    .brand-sub { font-size: 12px; color: #9ca3af; margin-top: 2px; letter-spacing: 0.3px; }
+    .invoice-title { text-align: right; }
+    .invoice-title h1 { font-size: 28px; font-weight: 800; color: #111827; letter-spacing: -1px; }
+    .invoice-title .number { font-size: 14px; color: #6b7280; margin-top: 2px; }
+    .status { display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: #fff; margin-top: 8px; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 36px; }
+    .meta-section h3 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin-bottom: 8px; }
+    .meta-section p { font-size: 14px; line-height: 1.6; color: #374151; }
+    .meta-section p.name { font-weight: 600; color: #111827; }
+    .dates { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 36px; }
+    .date-box { background: #f9fafb; border-radius: 10px; padding: 14px 18px; border: 1px solid #f3f4f6; }
+    .date-box .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #9ca3af; }
+    .date-box .value { font-size: 15px; font-weight: 600; color: #111827; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    thead th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #9ca3af; padding: 10px 0; border-bottom: 2px solid #f3f4f6; text-align: left; }
+    thead th:last-child, thead th:nth-child(2), thead th:nth-child(3) { text-align: right; }
+    tbody td { padding: 14px 0; border-bottom: 1px solid #f9fafb; font-size: 14px; color: #374151; }
+    tbody td:last-child, tbody td:nth-child(2), tbody td:nth-child(3) { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody td:first-child { color: #111827; font-weight: 500; }
+    .totals { display: flex; justify-content: flex-end; margin-top: 8px; }
+    .totals-box { width: 280px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: #6b7280; }
+    .totals-row.total { border-top: 2px solid #111827; padding-top: 12px; margin-top: 4px; font-size: 18px; font-weight: 800; color: #111827; }
+    .totals-row .amount { font-variant-numeric: tabular-nums; }
+    .notes { margin-top: 36px; padding: 20px; background: #f9fafb; border-radius: 10px; border: 1px solid #f3f4f6; }
+    .notes h3 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #9ca3af; margin-bottom: 8px; }
+    .notes p { font-size: 13px; color: #6b7280; line-height: 1.6; margin-bottom: 6px; }
+    .notes p:last-child { margin-bottom: 0; }
+    .footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid #f3f4f6; text-align: center; font-size: 12px; color: #9ca3af; }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none !important; }
+      .page { box-shadow: none; max-width: none; }
+      .content { padding: 32px 40px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <span style="font-size:13px;font-weight:600;">${invoice.invoice_number}</span>
+    <div style="display:flex;gap:8px;">
+      <button onclick="window.print()">Print / Save PDF</button>
+      <button onclick="window.close()">Close</button>
+    </div>
+  </div>
+  <div class="page">
+    <div class="content">
+      <div class="header">
+        <div>
+          <div class="logo">
+            ${logoHtml}
+            <div>
+              <div class="brand">${studioName}</div>
+              ${studioSub ? `<div class="brand-sub">${studioSub}</div>` : ''}
+            </div>
+          </div>
+          ${studioAddr ? `<p style="font-size:12px;color:#9ca3af;margin-top:10px;">${studioAddr}</p>` : ''}
+          ${s.studio_email ? `<p style="font-size:12px;color:#9ca3af;">${escapeHtml(s.studio_email)}</p>` : ''}
+          ${s.studio_phone ? `<p style="font-size:12px;color:#9ca3af;">${escapeHtml(s.studio_phone)}</p>` : ''}
+        </div>
+        <div class="invoice-title">
+          <h1>INVOICE</h1>
+          <p class="number">${invoice.invoice_number}</p>
+          <div class="status" style="background:${statusColor[invoice.status] ?? '#6b7280'}">${statusLabel[invoice.status] ?? invoice.status.toUpperCase()}</div>
+        </div>
+      </div>
+
+      <div class="meta">
+        <div class="meta-section">
+          <h3>Bill To</h3>
+          <p class="name">${escapeHtml(invoice.guest_name)}</p>
+          ${invoice.guest_email ? `<p>${escapeHtml(invoice.guest_email)}</p>` : ''}
+          ${invoice.guest_address ? `<p>${escapeHtml(invoice.guest_address)}</p>` : ''}
+        </div>
+        <div class="meta-section" style="text-align:right;">
+          <h3>From</h3>
+          <p class="name">${studioName}</p>
+          ${studioSub ? `<p>${studioSub}</p>` : ''}
+          ${studioAddr ? `<p>${studioAddr}</p>` : ''}
+        </div>
+      </div>
+
+      <div class="dates">
+        <div class="date-box">
+          <div class="label">Issued</div>
+          <div class="value">${formatDate(invoice.issued_date)}</div>
+        </div>
+        <div class="date-box">
+          <div class="label">Due Date</div>
+          <div class="value">${formatDate(invoice.due_date)}</div>
+        </div>
+        <div class="date-box">
+          <div class="label">${invoice.status === 'paid' ? 'Paid' : 'Amount Due'}</div>
+          <div class="value" style="color:${invoice.status === 'paid' ? '#059669' : '#111827'}">${currency}${invoice.total.toFixed(2)}</div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:55%">Description</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lineItems.map(item => `
+          <tr>
+            <td>${escapeHtml(item.description)}</td>
+            <td>${item.quantity}</td>
+            <td>${currency}${item.unit_price.toFixed(2)}</td>
+            <td>${currency}${item.total.toFixed(2)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+
+      <div class="totals">
+        <div class="totals-box">
+          <div class="totals-row">
+            <span>Subtotal</span>
+            <span class="amount">${currency}${invoice.subtotal.toFixed(2)}</span>
+          </div>
+          <div class="totals-row">
+            <span>VAT (${invoice.tax_rate}%)</span>
+            <span class="amount">${currency}${invoice.tax_amount.toFixed(2)}</span>
+          </div>
+          <div class="totals-row total">
+            <span>Total</span>
+            <span class="amount">${currency}${invoice.total.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      ${allNotes.length > 0 ? `
+      <div class="notes">
+        <h3>Notes</h3>
+        ${allNotes.map(n => `<p>${n}</p>`).join('')}
+      </div>` : ''}
+
+      <div class="footer">
+        <p>${footerParts.join(' &middot; ')}</p>
+        ${s.studio_website ? `<p style="margin-top:2px;">${escapeHtml(s.studio_website)}</p>` : ''}
+        ${invoice.paid_date ? `<p style="margin-top:4px;">Payment received: ${formatDate(invoice.paid_date)}</p>` : ''}
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return c.html(html);
+});
+
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr + 'T00:00:00Z');
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  } catch {
+    return dateStr;
+  }
+}
+
+type InvoiceRow = {
+  id: string; invoice_number: string; booking_id: string | null;
+  guest_name: string; guest_email: string | null; guest_address: string | null;
+  subtotal: number; tax_rate: number; tax_amount: number; total: number;
+  currency: string; status: string; issued_date: string; due_date: string;
+  paid_date: string | null; notes: string | null; line_items: string;
+  created_by: string; created_at: string; updated_at: string;
+};
+
+type StudioSettings = {
+  studio_name: string; studio_subtitle: string | null; studio_address: string | null;
+  studio_email: string | null; studio_phone: string | null; studio_website: string | null;
+  logo_r2_key: string | null; invoice_payment_terms: string | null;
+  invoice_bank_details: string | null; invoice_notes: string | null;
+};
+
 export default invoices;
