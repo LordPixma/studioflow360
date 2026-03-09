@@ -349,7 +349,7 @@ export function SchedulingPage() {
           <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
             <div className="grid grid-cols-7 divide-x divide-gray-100">
               {weekDays.map(day => {
-                const { day: dayName, date, full } = formatDay(day);
+                const { day: dayName, date } = formatDay(day);
                 const dayShifts = shifts.filter(s => s.shift_date === day);
                 const isToday = day === today;
 
