@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BOOKING_STATUSES, PLATFORMS, EVENT_TYPES, STUDIO_ITEM_CATEGORIES, STUDIO_ITEM_STATUSES, STUDIO_ITEM_PRIORITIES, STUDIO_ITEM_RECURRENCES, GUEST_SOURCES, GUEST_NOTE_TYPES, QUOTE_STATUSES, CONTRACT_STATUSES, SHIFT_TYPES, TIME_OFF_TYPES, TIME_OFF_STATUSES } from './constants.js';
+import { BOOKING_STATUSES, PLATFORMS, EVENT_TYPES, STUDIO_ITEM_CATEGORIES, STUDIO_ITEM_STATUSES, STUDIO_ITEM_PRIORITIES, STUDIO_ITEM_RECURRENCES, GUEST_SOURCES, GUEST_NOTE_TYPES, QUOTE_STATUSES, CONTRACT_STATUSES, SHIFT_TYPES, TIME_OFF_TYPES, TIME_OFF_STATUSES, TASK_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, TASK_RECURRENCES, INVENTORY_CATEGORIES, INVENTORY_UNITS, INVENTORY_TRANSACTION_TYPES } from './constants.js';
 
 // --- AI Extraction Schema (output from Workers AI) ---
 
@@ -392,6 +392,79 @@ export const CreateTimeOffSchema = z.object({
 
 export const ReviewTimeOffSchema = z.object({
   status: z.enum(TIME_OFF_STATUSES),
+});
+
+// --- Tasks Schemas ---
+
+export const CreateTaskSchema = z.object({
+  title: z.string().min(1).max(300),
+  description: z.string().max(5000).optional().nullable(),
+  category: z.enum(TASK_CATEGORIES).default('general'),
+  priority: z.enum(TASK_PRIORITIES).default('medium'),
+  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  due_time: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
+  room_id: z.string().uuid().optional().nullable(),
+  asset_id: z.string().uuid().optional().nullable(),
+  booking_id: z.string().uuid().optional().nullable(),
+  assigned_to: z.string().uuid().optional().nullable(),
+  is_recurring: z.number().int().min(0).max(1).optional(),
+  recurrence_rule: z.enum(TASK_RECURRENCES).optional().nullable(),
+  recurrence_end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  checklist: z.array(z.object({ label: z.string().min(1).max(300) })).optional(),
+});
+
+export const UpdateTaskSchema = z.object({
+  title: z.string().min(1).max(300).optional(),
+  description: z.string().max(5000).optional().nullable(),
+  category: z.enum(TASK_CATEGORIES).optional(),
+  status: z.enum(TASK_STATUSES).optional(),
+  priority: z.enum(TASK_PRIORITIES).optional(),
+  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  due_time: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
+  room_id: z.string().uuid().optional().nullable(),
+  asset_id: z.string().uuid().optional().nullable(),
+  booking_id: z.string().uuid().optional().nullable(),
+  assigned_to: z.string().uuid().optional().nullable(),
+});
+
+export const CreateTaskCommentSchema = z.object({
+  content: z.string().min(1).max(5000),
+});
+
+export const ToggleChecklistItemSchema = z.object({
+  is_checked: z.number().int().min(0).max(1),
+});
+
+// --- Inventory Schemas ---
+
+export const CreateInventoryItemSchema = z.object({
+  sku: z.string().max(50).optional().nullable(),
+  name: z.string().min(1).max(200),
+  description: z.string().max(2000).optional().nullable(),
+  category: z.enum(INVENTORY_CATEGORIES).default('general'),
+  unit: z.enum(INVENTORY_UNITS).default('pcs'),
+  quantity_on_hand: z.number().int().min(0).default(0),
+  minimum_stock: z.number().int().min(0).default(0),
+  reorder_quantity: z.number().int().min(0).default(0),
+  unit_cost: z.number().nonnegative().default(0),
+  supplier: z.string().max(200).optional().nullable(),
+  supplier_url: z.string().max(500).optional().nullable(),
+  location: z.string().max(200).optional().nullable(),
+  room_id: z.string().uuid().optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+export const UpdateInventoryItemSchema = CreateInventoryItemSchema.partial().extend({
+  is_active: z.number().int().min(0).max(1).optional(),
+});
+
+export const CreateInventoryTransactionSchema = z.object({
+  item_id: z.string().uuid(),
+  transaction_type: z.enum(INVENTORY_TRANSACTION_TYPES),
+  quantity: z.number().int(),
+  reference: z.string().max(200).optional().nullable(),
+  notes: z.string().max(1000).optional().nullable(),
+  booking_id: z.string().uuid().optional().nullable(),
 });
 
 // --- Studio Settings Schema ---

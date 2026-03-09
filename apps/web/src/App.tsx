@@ -18,6 +18,8 @@ import { GuestsPage } from './pages/Guests.tsx';
 import { QuotesPage } from './pages/Quotes.tsx';
 import { ContractsPage } from './pages/Contracts.tsx';
 import { SchedulingPage } from './pages/Scheduling.tsx';
+import { TasksPage } from './pages/Tasks.tsx';
+import { InventoryPage } from './pages/Inventory.tsx';
 
 function AuthenticatedApp() {
   const { staff, loading, error } = useAuth();
@@ -73,6 +75,8 @@ function AuthenticatedApp() {
         <Route path="/quotes" element={<QuotesPage />} />
         <Route path="/contracts" element={<ContractsPage />} />
         <Route path="/scheduling" element={<SchedulingPage />} />
+        <Route path="/tasks" element={<TasksPage />} />
+        <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>

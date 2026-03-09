@@ -20,6 +20,8 @@ import guestsRoute from './routes/guests.js';
 import quotesRoute from './routes/quotes.js';
 import contractsRoute from './routes/contracts.js';
 import schedulingRoute from './routes/scheduling.js';
+import tasksRoute from './routes/tasks.js';
+import inventoryRoute from './routes/inventory.js';
 import { ROLE_PERMISSIONS } from '@studioflow360/shared';
 import type { Env, StaffContext } from './types.js';
 
@@ -137,6 +139,14 @@ app.route('/api/contracts', contractsRoute);
 // Scheduling routes — require scheduling permissions
 app.use('/api/scheduling/*', requirePermission('scheduling.view'));
 app.route('/api/scheduling', schedulingRoute);
+
+// Tasks routes — require tasks permissions
+app.use('/api/tasks/*', requirePermission('tasks.view'));
+app.route('/api/tasks', tasksRoute);
+
+// Inventory routes — require inventory permissions
+app.use('/api/inventory/*', requirePermission('inventory.view'));
+app.route('/api/inventory', inventoryRoute);
 
 // Staff routes — /api/me is available to all authenticated
 app.get('/api/me', async (c) => {

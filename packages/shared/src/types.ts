@@ -1,4 +1,4 @@
-import type { BookingStatus, Platform, EventType, StaffRole, StudioItemCategory, StudioItemStatus, StudioItemPriority, StudioItemRecurrence, GuestSource, GuestNoteType, QuoteStatus, ContractStatus, ShiftType, TimeOffType, TimeOffStatus } from './constants.js';
+import type { BookingStatus, Platform, EventType, StaffRole, StudioItemCategory, StudioItemStatus, StudioItemPriority, StudioItemRecurrence, GuestSource, GuestNoteType, QuoteStatus, ContractStatus, ShiftType, TimeOffType, TimeOffStatus, TaskCategory, TaskStatus, TaskPriority, TaskRecurrence, InventoryCategory, InventoryUnit, InventoryTransactionType } from './constants.js';
 
 // --- D1 Row Types ---
 
@@ -392,6 +392,92 @@ export interface TimeOffRequestRow {
   reviewed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// --- Tasks Types ---
+
+export interface TaskRow {
+  id: string;
+  task_number: string;
+  title: string;
+  description: string | null;
+  category: TaskCategory;
+  status: TaskStatus;
+  priority: TaskPriority;
+  due_date: string | null;
+  due_time: string | null;
+  room_id: string | null;
+  asset_id: string | null;
+  booking_id: string | null;
+  assigned_to: string | null;
+  is_recurring: number;
+  recurrence_rule: TaskRecurrence | null;
+  recurrence_end_date: string | null;
+  parent_task_id: string | null;
+  completed_at: string | null;
+  completed_by: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskCommentRow {
+  id: string;
+  task_id: string;
+  content: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface TaskChecklistItemRow {
+  id: string;
+  task_id: string;
+  label: string;
+  is_checked: number;
+  sort_order: number;
+  checked_at: string | null;
+  checked_by: string | null;
+  created_at: string;
+}
+
+// --- Inventory Types ---
+
+export interface InventoryItemRow {
+  id: string;
+  sku: string | null;
+  name: string;
+  description: string | null;
+  category: InventoryCategory;
+  unit: InventoryUnit;
+  quantity_on_hand: number;
+  minimum_stock: number;
+  reorder_quantity: number;
+  unit_cost: number;
+  currency: string;
+  supplier: string | null;
+  supplier_url: string | null;
+  location: string | null;
+  room_id: string | null;
+  notes: string | null;
+  is_active: number;
+  last_restocked_at: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventoryTransactionRow {
+  id: string;
+  item_id: string;
+  transaction_type: InventoryTransactionType;
+  quantity: number;
+  previous_quantity: number;
+  new_quantity: number;
+  reference: string | null;
+  notes: string | null;
+  booking_id: string | null;
+  created_by: string;
+  created_at: string;
 }
 
 export interface StudioSettingsRow {

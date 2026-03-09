@@ -93,6 +93,31 @@ export type TimeOffType = (typeof TIME_OFF_TYPES)[number];
 export const TIME_OFF_STATUSES = ['pending', 'approved', 'declined'] as const;
 export type TimeOffStatus = (typeof TIME_OFF_STATUSES)[number];
 
+// --- Tasks Constants ---
+
+export const TASK_CATEGORIES = ['general', 'maintenance', 'cleaning', 'repair', 'setup', 'teardown', 'admin', 'follow_up'] as const;
+export type TaskCategory = (typeof TASK_CATEGORIES)[number];
+
+export const TASK_STATUSES = ['open', 'in_progress', 'completed', 'cancelled', 'on_hold'] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+
+export const TASK_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
+export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+
+export const TASK_RECURRENCES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'annually'] as const;
+export type TaskRecurrence = (typeof TASK_RECURRENCES)[number];
+
+// --- Inventory Constants ---
+
+export const INVENTORY_CATEGORIES = ['general', 'cables', 'batteries', 'tape', 'lighting', 'audio', 'cleaning', 'stationery', 'refreshments', 'safety', 'other'] as const;
+export type InventoryCategory = (typeof INVENTORY_CATEGORIES)[number];
+
+export const INVENTORY_UNITS = ['pcs', 'boxes', 'rolls', 'packs', 'litres', 'kg', 'metres', 'pairs', 'sets'] as const;
+export type InventoryUnit = (typeof INVENTORY_UNITS)[number];
+
+export const INVENTORY_TRANSACTION_TYPES = ['restock', 'usage', 'adjustment', 'return', 'write_off'] as const;
+export type InventoryTransactionType = (typeof INVENTORY_TRANSACTION_TYPES)[number];
+
 // --- RBAC Permissions ---
 
 export const PERMISSIONS = [
@@ -123,6 +148,10 @@ export const PERMISSIONS = [
   'contracts.manage',
   'scheduling.view',
   'scheduling.manage',
+  'tasks.view',
+  'tasks.manage',
+  'inventory.view',
+  'inventory.manage',
   'settings.view',
   'settings.manage',
 ] as const;
@@ -144,6 +173,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'quotes.view', 'quotes.create',
     'contracts.view', 'contracts.manage',
     'scheduling.view', 'scheduling.manage',
+    'tasks.view', 'tasks.manage',
+    'inventory.view', 'inventory.manage',
     'settings.view',
   ],
   staff: [
@@ -159,6 +190,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'quotes.view',
     'contracts.view',
     'scheduling.view',
+    'tasks.view',
+    'inventory.view',
   ],
 };
 
