@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BOOKING_STATUSES, PLATFORMS, EVENT_TYPES, STUDIO_ITEM_CATEGORIES, STUDIO_ITEM_STATUSES, STUDIO_ITEM_PRIORITIES, STUDIO_ITEM_RECURRENCES, GUEST_SOURCES, GUEST_NOTE_TYPES, QUOTE_STATUSES, CONTRACT_STATUSES, SHIFT_TYPES, TIME_OFF_TYPES, TIME_OFF_STATUSES, TASK_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, TASK_RECURRENCES, INVENTORY_CATEGORIES, INVENTORY_UNITS, INVENTORY_TRANSACTION_TYPES } from './constants.js';
+import { BOOKING_STATUSES, PLATFORMS, EVENT_TYPES, STUDIO_ITEM_CATEGORIES, STUDIO_ITEM_STATUSES, STUDIO_ITEM_PRIORITIES, STUDIO_ITEM_RECURRENCES, GUEST_SOURCES, GUEST_NOTE_TYPES, QUOTE_STATUSES, CONTRACT_STATUSES, SHIFT_TYPES, TIME_OFF_TYPES, TIME_OFF_STATUSES, TASK_CATEGORIES, TASK_STATUSES, TASK_PRIORITIES, TASK_RECURRENCES, INVENTORY_CATEGORIES, INVENTORY_UNITS, INVENTORY_TRANSACTION_TYPES, DOCUMENT_CATEGORIES, NOTIFICATION_TYPES, ACTIVITY_ENTITY_TYPES } from './constants.js';
 
 // --- AI Extraction Schema (output from Workers AI) ---
 
@@ -465,6 +465,44 @@ export const CreateInventoryTransactionSchema = z.object({
   reference: z.string().max(200).optional().nullable(),
   notes: z.string().max(1000).optional().nullable(),
   booking_id: z.string().uuid().optional().nullable(),
+});
+
+// --- Documents Schemas ---
+
+export const UploadDocumentSchema = z.object({
+  category: z.enum(DOCUMENT_CATEGORIES).default('other'),
+  description: z.string().max(1000).optional().nullable(),
+  booking_id: z.string().uuid().optional().nullable(),
+  guest_id: z.string().uuid().optional().nullable(),
+  contract_id: z.string().uuid().optional().nullable(),
+  task_id: z.string().uuid().optional().nullable(),
+  asset_id: z.string().uuid().optional().nullable(),
+  room_id: z.string().uuid().optional().nullable(),
+  tags: z.array(z.string().max(50)).optional(),
+});
+
+export const UpdateDocumentSchema = z.object({
+  category: z.enum(DOCUMENT_CATEGORIES).optional(),
+  description: z.string().max(1000).optional().nullable(),
+  booking_id: z.string().uuid().optional().nullable(),
+  guest_id: z.string().uuid().optional().nullable(),
+  contract_id: z.string().uuid().optional().nullable(),
+  task_id: z.string().uuid().optional().nullable(),
+  asset_id: z.string().uuid().optional().nullable(),
+  room_id: z.string().uuid().optional().nullable(),
+  tags: z.array(z.string().max(50)).optional(),
+});
+
+// --- Notifications Schemas ---
+
+export const CreateNotificationSchema = z.object({
+  recipient_id: z.string().uuid(),
+  type: z.enum(NOTIFICATION_TYPES),
+  title: z.string().min(1).max(300),
+  body: z.string().max(1000).optional().nullable(),
+  link: z.string().max(500).optional().nullable(),
+  entity_type: z.enum(ACTIVITY_ENTITY_TYPES).optional().nullable(),
+  entity_id: z.string().uuid().optional().nullable(),
 });
 
 // --- Studio Settings Schema ---

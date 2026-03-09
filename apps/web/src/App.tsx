@@ -20,6 +20,8 @@ import { ContractsPage } from './pages/Contracts.tsx';
 import { SchedulingPage } from './pages/Scheduling.tsx';
 import { TasksPage } from './pages/Tasks.tsx';
 import { InventoryPage } from './pages/Inventory.tsx';
+import { DocumentsPage } from './pages/Documents.tsx';
+import { NotificationsPage } from './pages/Notifications.tsx';
 
 function AuthenticatedApp() {
   const { staff, loading, error } = useAuth();
@@ -77,6 +79,8 @@ function AuthenticatedApp() {
         <Route path="/scheduling" element={<SchedulingPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/inventory" element={<InventoryPage />} />
+        <Route path="/documents" element={<DocumentsPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>

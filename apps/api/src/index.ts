@@ -22,6 +22,8 @@ import contractsRoute from './routes/contracts.js';
 import schedulingRoute from './routes/scheduling.js';
 import tasksRoute from './routes/tasks.js';
 import inventoryRoute from './routes/inventory.js';
+import documentsRoute from './routes/documents.js';
+import notificationsRoute from './routes/notifications.js';
 import { ROLE_PERMISSIONS } from '@studioflow360/shared';
 import type { Env, StaffContext } from './types.js';
 
@@ -147,6 +149,13 @@ app.route('/api/tasks', tasksRoute);
 // Inventory routes — require inventory permissions
 app.use('/api/inventory/*', requirePermission('inventory.view'));
 app.route('/api/inventory', inventoryRoute);
+
+// Documents routes — require documents permissions
+app.use('/api/documents/*', requirePermission('documents.view'));
+app.route('/api/documents', documentsRoute);
+
+// Notifications routes — available to all authenticated (user sees own)
+app.route('/api/notifications', notificationsRoute);
 
 // Staff routes — /api/me is available to all authenticated
 app.get('/api/me', async (c) => {

@@ -118,6 +118,40 @@ export type InventoryUnit = (typeof INVENTORY_UNITS)[number];
 export const INVENTORY_TRANSACTION_TYPES = ['restock', 'usage', 'adjustment', 'return', 'write_off'] as const;
 export type InventoryTransactionType = (typeof INVENTORY_TRANSACTION_TYPES)[number];
 
+// --- Reports & Resource Planning Constants ---
+
+export const REPORT_TYPES = ['revenue', 'occupancy', 'bookings', 'staff_utilization', 'guest_activity', 'financial_summary', 'inventory_usage', 'task_completion', 'custom'] as const;
+export type ReportType = (typeof REPORT_TYPES)[number];
+
+export const REPORT_SCHEDULES = ['daily', 'weekly', 'monthly', 'quarterly'] as const;
+export type ReportSchedule = (typeof REPORT_SCHEDULES)[number];
+
+export const CAPACITY_TARGET_TYPES = ['daily_hours', 'weekly_hours', 'monthly_revenue', 'monthly_bookings'] as const;
+export type CapacityTargetType = (typeof CAPACITY_TARGET_TYPES)[number];
+
+export const EXPORT_FORMATS = ['csv', 'pdf', 'xlsx'] as const;
+export type ExportFormat = (typeof EXPORT_FORMATS)[number];
+
+// --- Documents Constants ---
+
+export const DOCUMENT_CATEGORIES = ['contract', 'invoice', 'receipt', 'photo', 'certificate', 'insurance', 'floor_plan', 'rider', 'release_form', 'other'] as const;
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+
+// --- Notifications Constants ---
+
+export const NOTIFICATION_TYPES = [
+  'booking_new', 'booking_status', 'booking_assigned',
+  'task_assigned', 'task_due', 'task_completed',
+  'time_off_request', 'time_off_reviewed',
+  'contract_signed', 'quote_accepted',
+  'inventory_low_stock', 'document_uploaded',
+  'comment_added', 'system',
+] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+export const ACTIVITY_ENTITY_TYPES = ['booking', 'task', 'contract', 'quote', 'guest', 'shift', 'time_off', 'inventory', 'document', 'asset'] as const;
+export type ActivityEntityType = (typeof ACTIVITY_ENTITY_TYPES)[number];
+
 // --- RBAC Permissions ---
 
 export const PERMISSIONS = [
@@ -152,6 +186,8 @@ export const PERMISSIONS = [
   'tasks.manage',
   'inventory.view',
   'inventory.manage',
+  'documents.view',
+  'documents.manage',
   'settings.view',
   'settings.manage',
 ] as const;
@@ -175,6 +211,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'scheduling.view', 'scheduling.manage',
     'tasks.view', 'tasks.manage',
     'inventory.view', 'inventory.manage',
+    'documents.view', 'documents.manage',
     'settings.view',
   ],
   staff: [
@@ -192,6 +229,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     'scheduling.view',
     'tasks.view',
     'inventory.view',
+    'documents.view',
   ],
 };
 

@@ -1,4 +1,4 @@
-import type { BookingStatus, Platform, EventType, StaffRole, StudioItemCategory, StudioItemStatus, StudioItemPriority, StudioItemRecurrence, GuestSource, GuestNoteType, QuoteStatus, ContractStatus, ShiftType, TimeOffType, TimeOffStatus, TaskCategory, TaskStatus, TaskPriority, TaskRecurrence, InventoryCategory, InventoryUnit, InventoryTransactionType } from './constants.js';
+import type { BookingStatus, Platform, EventType, StaffRole, StudioItemCategory, StudioItemStatus, StudioItemPriority, StudioItemRecurrence, GuestSource, GuestNoteType, QuoteStatus, ContractStatus, ShiftType, TimeOffType, TimeOffStatus, TaskCategory, TaskStatus, TaskPriority, TaskRecurrence, InventoryCategory, InventoryUnit, InventoryTransactionType, DocumentCategory, NotificationType, ActivityEntityType, ReportType, ReportSchedule, CapacityTargetType, ExportFormat } from './constants.js';
 
 // --- D1 Row Types ---
 
@@ -476,6 +476,94 @@ export interface InventoryTransactionRow {
   reference: string | null;
   notes: string | null;
   booking_id: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+// --- Documents Types ---
+
+export interface DocumentRow {
+  id: string;
+  filename: string;
+  original_filename: string;
+  mime_type: string;
+  file_size: number;
+  r2_key: string;
+  category: DocumentCategory;
+  description: string | null;
+  booking_id: string | null;
+  guest_id: string | null;
+  contract_id: string | null;
+  task_id: string | null;
+  asset_id: string | null;
+  room_id: string | null;
+  tags: string; // JSON array
+  uploaded_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- Notifications Types ---
+
+export interface NotificationRow {
+  id: string;
+  recipient_id: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  link: string | null;
+  is_read: number;
+  entity_type: ActivityEntityType | null;
+  entity_id: string | null;
+  created_at: string;
+}
+
+export interface ActivityLogRow {
+  id: string;
+  actor_id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  entity_label: string | null;
+  details: string | null;
+  created_at: string;
+}
+
+// --- Reports & Resource Planning Types ---
+
+export interface SavedReportRow {
+  id: string;
+  name: string;
+  description: string | null;
+  report_type: ReportType;
+  filters: string; // JSON
+  schedule: ReportSchedule | null;
+  last_run_at: string | null;
+  is_pinned: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoomCapacityTargetRow {
+  id: string;
+  room_id: string;
+  target_type: CapacityTargetType;
+  target_value: number;
+  effective_from: string;
+  effective_to: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface ExportLogRow {
+  id: string;
+  report_type: string;
+  format: ExportFormat;
+  filters: string;
+  row_count: number;
+  file_size: number;
+  r2_key: string | null;
   created_by: string;
   created_at: string;
 }
