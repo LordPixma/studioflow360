@@ -10,7 +10,7 @@ export const BOOKING_STATUSES = [
 
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
-export const PLATFORMS = ['giggster', 'peerspace', 'scouty', 'tagvenue', 'direct'] as const;
+export const PLATFORMS = ['giggster', 'peerspace', 'scouty', 'tagvenue', 'direct', 'acuity'] as const;
 
 export type Platform = (typeof PLATFORMS)[number];
 
@@ -289,4 +289,5 @@ export const PLATFORM_COLORS: Record<Platform, string> = {
   peerspace: '#10B981',
   tagvenue: '#F97316',
   direct: '#6B7280',
+  acuity: '#0070E0',
 };

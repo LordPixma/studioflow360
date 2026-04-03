@@ -348,14 +348,41 @@ async function processBookingEmail(env: Env, msg: QueueMessage): Promise<void> {
     return;
   }
 
-  // 4. Determine status based on confidence
+  // 4. Duplicate detection: check if a booking with the same guest + date + time already exists
+  // This catches repeat emails (confirmation + reminder) for the same booking
+  if (candidate.guestEmail) {
+    const dup = await env.DB.prepare(
+      `SELECT id FROM bookings
+       WHERE guest_email = ? AND booking_date = ?
+       AND start_time < ? AND end_time > ?
+       AND status NOT IN ('REJECTED','CANCELLED')
+       LIMIT 1`,
+    ).bind(candidate.guestEmail, candidate.requestedDate, candidate.endTime, candidate.startTime).first();
+    if (dup) {
+      console.log(`Duplicate booking detected for ${candidate.requestedDate} — skipping`);
+      return;
+    }
+  }
+
+  // Also check by platform_ref if present (exact external reference match)
+  if (candidate.platformRef) {
+    const refDup = await env.DB.prepare(
+      `SELECT id FROM bookings WHERE platform = ? AND platform_ref = ? LIMIT 1`,
+    ).bind(candidate.platform, candidate.platformRef).first();
+    if (refDup) {
+      console.log(`Duplicate platform_ref ${candidate.platformRef} — skipping`);
+      return;
+    }
+  }
+
+  // 5. Determine status based on confidence
   const status = candidate.confidence < AI_CONFIDENCE_THRESHOLD ? 'NEEDS_REVIEW' : 'PENDING';
 
-  // 5. Calculate duration if not provided
+  // 6. Calculate duration if not provided
   const duration =
     candidate.durationHours ?? calculateDurationHours(candidate.startTime, candidate.endTime);
 
-  // 6. Insert booking into D1
+  // 7. Insert booking into D1
   const id = generateId();
   const now = nowISO();
 

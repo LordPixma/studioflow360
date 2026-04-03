@@ -82,7 +82,7 @@ export function ActionQueuePage() {
             return (
               <div
                 key={booking.id}
-                className={`card-interactive flex items-center justify-between rounded-xl bg-white p-4 ${
+                className={`card-interactive flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white p-4 ${
                   stale ? '!border-red-200 !bg-red-50/50' : ''
                 }`}
               >
@@ -105,7 +105,7 @@ export function ActionQueuePage() {
                   </div>
                 </div>
                 <button
-                  className="btn btn-success"
+                  className="btn btn-success self-start sm:self-auto"
                   onClick={() => markActioned(booking.id)}
                   disabled={actionLoading === booking.id}
                 >

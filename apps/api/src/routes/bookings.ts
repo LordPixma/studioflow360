@@ -12,6 +12,7 @@ import {
 } from '@studioflow360/shared';
 import type { BookingRow } from '@studioflow360/shared';
 import type { Env, StaffContext } from '../types.js';
+import { createCalendarEvent, deleteCalendarEvent } from '../services/outlook-calendar.js';
 
 type BookingEnv = {
   Bindings: Env;
@@ -106,6 +107,41 @@ bookings.post('/', zValidator('json', StaffBookingSchema), async (c) => {
   const now = nowISO();
   const id = generateId();
 
+  // Room conflict check: prevent double-booking of the same room
+  if (body.room_id) {
+    const conflict = await c.env.DB.prepare(
+      `SELECT id, guest_name FROM bookings
+       WHERE room_id = ? AND booking_date = ?
+       AND start_time < ? AND end_time > ?
+       AND status NOT IN ('REJECTED','CANCELLED')
+       LIMIT 1`,
+    ).bind(body.room_id, body.booking_date, body.end_time, body.start_time)
+      .first<{ id: string; guest_name: string }>();
+    if (conflict) {
+      return c.json({
+        success: false,
+        error: { code: 'ROOM_CONFLICT', message: `Room already booked by ${conflict.guest_name} at this time` },
+      }, 409);
+    }
+  }
+
+  // Duplicate guest check: same guest email + date + overlapping time
+  if (body.guest_email) {
+    const dup = await c.env.DB.prepare(
+      `SELECT id FROM bookings
+       WHERE guest_email = ? AND booking_date = ?
+       AND start_time < ? AND end_time > ?
+       AND status NOT IN ('REJECTED','CANCELLED')
+       LIMIT 1`,
+    ).bind(body.guest_email, body.booking_date, body.end_time, body.start_time).first();
+    if (dup) {
+      return c.json({
+        success: false,
+        error: { code: 'DUPLICATE', message: 'A booking already exists for this guest at the requested time' },
+      }, 409);
+    }
+  }
+
   await c.env.DB.prepare(
     `INSERT INTO bookings (id, platform, platform_ref, guest_name, guest_email, booking_date, start_time, end_time,
      duration_hours, guest_count, total_price, currency, notes, room_id, status, ai_confidence, assigned_to, created_at, updated_at)
@@ -194,9 +230,21 @@ bookings.patch('/:id/status', zValidator('json', UpdateBookingStatusSchema), asy
   const { status: newStatus } = c.req.valid('json');
   const staff = c.get('staff');
 
-  const booking = await c.env.DB.prepare('SELECT id, status FROM bookings WHERE id = ?')
+  const booking = await c.env.DB.prepare(
+    `SELECT b.id, b.status, b.guest_name, b.guest_email, b.booking_date, b.start_time, b.end_time,
+            b.guest_count, b.total_price, b.currency, b.notes, b.platform, b.platform_ref, b.calendar_event_id,
+            r.name as room_name
+     FROM bookings b LEFT JOIN rooms r ON b.room_id = r.id
+     WHERE b.id = ?`,
+  )
     .bind(id)
-    .first<{ id: string; status: string }>();
+    .first<{
+      id: string; status: string; guest_name: string; guest_email: string | null;
+      booking_date: string; start_time: string; end_time: string;
+      guest_count: number | null; total_price: number | null; currency: string | null;
+      notes: string | null; platform: string | null; platform_ref: string | null;
+      calendar_event_id: string | null; room_name: string | null;
+    }>();
 
   if (!booking) {
     return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } }, 404);
@@ -240,6 +288,28 @@ bookings.patch('/:id/status', zValidator('json', UpdateBookingStatusSchema), asy
   )
     .bind(generateId(), id, eventType, staff.id, JSON.stringify({ from: booking.status, to: newStatus }), now)
     .run();
+
+  // --- Outlook Calendar integration (non-blocking) ---
+  try {
+    if (newStatus === 'APPROVED') {
+      // Create calendar event for approved booking
+      const calendarEventId = await createCalendarEvent(c.env, booking);
+      await c.env.DB.prepare('UPDATE bookings SET calendar_event_id = ? WHERE id = ?')
+        .bind(calendarEventId, id)
+        .run();
+    } else if (newStatus === 'CANCELLED' || (newStatus === 'PENDING' && booking.status === 'APPROVED')) {
+      // Delete calendar event when cancelling or unapproving
+      if (booking.calendar_event_id) {
+        await deleteCalendarEvent(c.env, booking.calendar_event_id);
+        await c.env.DB.prepare('UPDATE bookings SET calendar_event_id = NULL WHERE id = ?')
+          .bind(id)
+          .run();
+      }
+    }
+  } catch (calendarError) {
+    // Calendar operations must not fail the booking action
+    console.error('Calendar sync error:', calendarError);
+  }
 
   await broadcastUpdate(c.env, id, 'BOOKING_UPDATED');
   return c.json({ success: true, data: { id, status: newStatus } });

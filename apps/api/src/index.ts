@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { authMiddleware, requirePermission } from './middleware/auth.js';
+import { rateLimit } from './middleware/rate-limit.js';
 import bookings from './routes/bookings.js';
 import rooms from './routes/rooms.js';
 import calendar from './routes/calendar.js';
@@ -29,6 +30,8 @@ import resourcePlanningRoute from './routes/resource-planning.js';
 import automationRoute from './routes/automation.js';
 import marketingRoute from './routes/marketing.js';
 import integrationsRoute from './routes/integrations.js';
+import emailClassificationsRoute from './routes/email-classifications.js';
+import acuityWebhook from './routes/webhooks-acuity.js';
 import { ROLE_PERMISSIONS } from '@studioflow360/shared';
 import type { Env, StaffContext } from './types.js';
 
@@ -63,10 +66,16 @@ app.use(
 // Health check (unauthenticated)
 app.get('/api/health', (c) => c.json({ success: true, data: { status: 'ok', environment: c.env.ENVIRONMENT } }));
 
-// Public route: direct website booking ingest
+// Rate limiting for public endpoints
+const publicRateLimit = rateLimit({ limit: 30, windowSeconds: 60, prefix: 'pub' });
+const ingestRateLimit = rateLimit({ limit: 5, windowSeconds: 60, prefix: 'ingest' });
+
+// Public route: direct website booking ingest (stricter rate limit)
+app.use('/api/bookings/ingest/*', ingestRateLimit);
 app.route('/api/bookings/ingest', ingest);
 
 // Public route: room availability for public booking page
+app.use('/api/public/*', publicRateLimit);
 app.get('/api/public/rooms', async (c) => {
   const rooms = await c.env.DB.prepare(
     'SELECT id, name, description, capacity, hourly_rate, color_hex FROM rooms WHERE active = 1 ORDER BY name',
@@ -74,11 +83,15 @@ app.get('/api/public/rooms', async (c) => {
   return c.json({ success: true, data: rooms.results });
 });
 
-// Public route: room availability (booked slots for a given date range)
+// Public route: room availability — returns booked slots AND computed open time slots
 app.get('/api/public/availability', async (c) => {
   const date = c.req.query('date');
   const roomId = c.req.query('room_id');
   if (!date) return c.json({ success: false, error: { code: 'BAD_REQUEST', message: 'date required' } }, 400);
+
+  // Operating hours: 08:00 - 22:00 (configurable later via settings)
+  const OPEN_HOUR = 8;
+  const CLOSE_HOUR = 22;
 
   const conditions = [`booking_date = ?`, `status NOT IN ('REJECTED', 'CANCELLED')`];
   const params: unknown[] = [date];
@@ -87,7 +100,29 @@ app.get('/api/public/availability', async (c) => {
   const bookings = await c.env.DB.prepare(
     `SELECT room_id, start_time, end_time FROM bookings WHERE ${conditions.join(' AND ')} ORDER BY start_time`,
   ).bind(...params).all();
-  return c.json({ success: true, data: bookings.results });
+
+  // Compute open 30-minute slots
+  const booked = bookings.results as Array<{ room_id: string; start_time: string; end_time: string }>;
+  const slots: Array<{ time: string; available: boolean }> = [];
+  for (let h = OPEN_HOUR; h < CLOSE_HOUR; h++) {
+    for (const m of [0, 30]) {
+      const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      const slotEnd = m === 30
+        ? `${String(h + 1).padStart(2, '0')}:00`
+        : `${String(h).padStart(2, '0')}:30`;
+      const isBooked = booked.some(b => b.start_time < slotEnd && b.end_time > time);
+      slots.push({ time, available: !isBooked });
+    }
+  }
+
+  return c.json({
+    success: true,
+    data: {
+      booked: booked,
+      slots,
+      operating_hours: { open: `${String(OPEN_HOUR).padStart(2, '0')}:00`, close: `${String(CLOSE_HOUR).padStart(2, '0')}:00` },
+    },
+  });
 });
 
 // WebSocket endpoint for real-time updates
@@ -100,13 +135,29 @@ app.get('/api/ws', async (c) => {
 });
 
 // Internal broadcast endpoint (called by queue-consumer via service binding)
+// Protected: only accessible via service bindings (request URL starts with https://internal/)
+// or with a valid INTERNAL_SECRET header
 app.post('/api/internal/broadcast', async (c) => {
+  // Service binding requests use a synthetic URL like https://internal/...
+  // External requests come from real hostnames. Block them unless they have the secret.
+  const url = new URL(c.req.url);
+  const isServiceBinding = url.hostname === 'internal' || url.hostname === 'fake-host';
+  const internalSecret = (c.env as unknown as Record<string, unknown>).INTERNAL_SECRET as string | undefined;
+  const providedSecret = c.req.header('X-Internal-Secret');
+
+  if (!isServiceBinding && !(internalSecret && providedSecret === internalSecret)) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Internal only' } }, 403);
+  }
+
   const body = await c.req.text();
   const hubId = c.env.BOOKING_HUB.idFromName('global');
   const hub = c.env.BOOKING_HUB.get(hubId);
   await hub.fetch(new Request('https://hub/broadcast', { method: 'POST', body }));
   return c.json({ success: true });
 });
+
+// Acuity Scheduling webhook (public, HMAC-verified)
+app.route('/api/webhooks/acuity', acuityWebhook);
 
 // All other API routes require authentication
 app.use('/api/*', authMiddleware);
@@ -181,6 +232,10 @@ app.route('/api/marketing', marketingRoute);
 // Integrations routes — require settings.manage permission
 app.use('/api/integrations/*', requirePermission('settings.manage'));
 app.route('/api/integrations', integrationsRoute);
+
+// Email Classifications routes — require settings.manage permission
+app.use('/api/email-classifications/*', requirePermission('settings.manage'));
+app.route('/api/email-classifications', emailClassificationsRoute);
 
 // Staff routes — /api/me is available to all authenticated
 app.get('/api/me', async (c) => {

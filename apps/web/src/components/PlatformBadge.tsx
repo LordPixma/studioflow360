@@ -6,6 +6,7 @@ const platformLabels: Record<Platform, string> = {
   scouty: 'Scouty',
   tagvenue: 'TagVenue',
   direct: 'Direct',
+  acuity: 'Acuity',
 };
 
 export function PlatformBadge({ platform }: { platform: Platform }) {

@@ -10,29 +10,31 @@ type AuthEnv = {
 };
 
 export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
-  // Dev auth: bypass with header (local dev) or secret-protected header (staging/production testing)
-  const devEmail = c.req.header('X-Dev-Email');
-  if (devEmail) {
-    // In local dev, allow freely; in production, require DEV_AUTH_SECRET
-    const isLocalDev = c.env.ENVIRONMENT === 'development';
-    const devSecret = c.req.header('X-Dev-Secret');
-    const expectedSecret = (c.env as unknown as Record<string, unknown>).DEV_AUTH_SECRET as string | undefined;
+  // Dev auth: ONLY available in non-production environments
+  // In production, this block is completely skipped — Cloudflare Access JWT is required
+  if (c.env.ENVIRONMENT !== 'production') {
+    const devEmail = c.req.header('X-Dev-Email');
+    if (devEmail) {
+      const isLocalDev = c.env.ENVIRONMENT === 'development';
+      const devSecret = c.req.header('X-Dev-Secret');
+      const expectedSecret = (c.env as unknown as Record<string, unknown>).DEV_AUTH_SECRET as string | undefined;
 
-    if (isLocalDev || (expectedSecret && devSecret === expectedSecret)) {
-      const staff = await c.env.DB.prepare(
-        'SELECT id, access_email, display_name, role FROM staff_users WHERE LOWER(access_email) = LOWER(?) AND active = 1',
-      )
-        .bind(devEmail)
-        .first<{ id: string; access_email: string; display_name: string; role: string }>();
+      if (isLocalDev || (expectedSecret && devSecret === expectedSecret)) {
+        const staff = await c.env.DB.prepare(
+          'SELECT id, access_email, display_name, role FROM staff_users WHERE LOWER(access_email) = LOWER(?) AND active = 1',
+        )
+          .bind(devEmail)
+          .first<{ id: string; access_email: string; display_name: string; role: string }>();
 
-      if (staff) {
-        c.set('staff', {
-          id: staff.id,
-          email: staff.access_email,
-          displayName: staff.display_name,
-          role: staff.role as StaffContext['role'],
-        });
-        return next();
+        if (staff) {
+          c.set('staff', {
+            id: staff.id,
+            email: staff.access_email,
+            displayName: staff.display_name,
+            role: staff.role as StaffContext['role'],
+          });
+          return next();
+        }
       }
     }
   }

@@ -83,11 +83,11 @@ export function DashboardPage() {
     return (
       <div className="animate-fade-in space-y-6">
         <div className="skeleton h-12 w-72" />
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton h-24" />)}
         </div>
-        <div className="grid grid-cols-3 gap-5">
-          <div className="col-span-2 skeleton h-80" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2 skeleton h-80" />
           <div className="skeleton h-80" />
         </div>
       </div>
@@ -99,9 +99,9 @@ export function DashboardPage() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">
             {greeting}, {staff?.displayName?.split(' ')[0]}
           </h1>
           <p className="mt-0.5 text-sm text-gray-400">
@@ -110,14 +110,14 @@ export function DashboardPage() {
         </div>
         <Link
           to="/inbox"
-          className="rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+          className="self-start rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
         >
           View inbox
         </Link>
       </div>
 
       {/* KPI Strip */}
-      <div className="mb-6 grid grid-cols-4 gap-3">
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Bookings today" value={String(data.today.booking_count)} color="blue" />
         <KpiCard
           label="Revenue today"

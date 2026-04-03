@@ -32,21 +32,50 @@ ingest.post('/', zValidator('json', DirectBookingSchema), async (c) => {
     );
   }
 
+  // Duplicate check: same guest email + date + overlapping time
+  if (data.guest_email) {
+    const dup = await c.env.DB.prepare(
+      `SELECT id FROM bookings
+       WHERE guest_email = ? AND booking_date = ?
+       AND start_time < ? AND end_time > ?
+       AND status NOT IN ('REJECTED','CANCELLED')
+       LIMIT 1`,
+    ).bind(data.guest_email, data.booking_date, data.end_time, data.start_time).first();
+    if (dup) {
+      return c.json({ success: false, error: { code: 'DUPLICATE', message: 'A booking already exists for this guest at the requested time' } }, 409);
+    }
+  }
+
+  // Room conflict check: prevent double-booking of the same room
+  if (data.room_id) {
+    const conflict = await c.env.DB.prepare(
+      `SELECT id FROM bookings
+       WHERE room_id = ? AND booking_date = ?
+       AND start_time < ? AND end_time > ?
+       AND status NOT IN ('REJECTED','CANCELLED')
+       LIMIT 1`,
+    ).bind(data.room_id, data.booking_date, data.end_time, data.start_time).first();
+    if (conflict) {
+      return c.json({ success: false, error: { code: 'ROOM_CONFLICT', message: 'This room is already booked for the requested time slot' } }, 409);
+    }
+  }
+
   const id = generateId();
   const now = nowISO();
   const duration = calculateDurationHours(data.start_time, data.end_time);
 
   await c.env.DB.prepare(
-    `INSERT INTO bookings (id, platform, platform_ref, status, room_id, guest_name, guest_email,
+    `INSERT INTO bookings (id, platform, platform_ref, status, room_id, guest_name, guest_email, guest_phone,
      booking_date, start_time, end_time, duration_hours, guest_count, notes, ai_confidence,
      created_at, updated_at)
-     VALUES (?, 'direct', NULL, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, ?, ?)`,
+     VALUES (?, 'direct', NULL, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, ?, ?)`,
   )
     .bind(
       id,
       data.room_id ?? null,
       data.guest_name,
       data.guest_email,
+      data.guest_phone ?? null,
       data.booking_date,
       data.start_time,
       data.end_time,

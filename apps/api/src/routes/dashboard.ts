@@ -19,14 +19,16 @@ dashboard.get('/', async (c) => {
        FROM bookings WHERE booking_date = ? AND status NOT IN ('REJECTED','CANCELLED')`,
     ).bind(today).first<{ count: number; revenue: number }>(),
 
-    // Pending action items
+    // Pending action items (PENDING/NEEDS_REVIEW that need staff attention)
     c.env.DB.prepare(
       `SELECT COUNT(*) as count FROM bookings WHERE status IN ('PENDING','NEEDS_REVIEW')`,
     ).first<{ count: number }>(),
 
-    // Approved but not actioned
+    // Stale approvals: approved but not yet actioned on external platform
+    // Must match the Action Queue filter: non-direct, not platform-actioned
     c.env.DB.prepare(
-      `SELECT COUNT(*) as count FROM bookings WHERE status = 'APPROVED'`,
+      `SELECT COUNT(*) as count FROM bookings
+       WHERE status = 'APPROVED' AND platform != 'direct' AND platform_actioned = 0`,
     ).first<{ count: number }>(),
 
     // Upcoming bookings (next 7 days)

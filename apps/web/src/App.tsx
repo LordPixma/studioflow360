@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router';
 import { useAuth } from './context/auth.tsx';
 import { Layout } from './components/Layout.tsx';
 import { InboxPage } from './pages/Inbox.tsx';
+import { BookingsPage } from './pages/Bookings.tsx';
 import { BookingDetailPage } from './pages/BookingDetail.tsx';
 import { CalendarPage } from './pages/Calendar.tsx';
 import { ActionQueuePage } from './pages/ActionQueue.tsx';
@@ -27,6 +28,7 @@ import { ResourcePlanningPage } from './pages/ResourcePlanning.tsx';
 import { AutomationPage } from './pages/Automation.tsx';
 import { MarketingPage } from './pages/Marketing.tsx';
 import { IntegrationsPage } from './pages/Integrations.tsx';
+import { EmailClassificationsPage } from './pages/EmailClassifications.tsx';
 
 function AuthenticatedApp() {
   const { staff, loading, error } = useAuth();
@@ -70,6 +72,7 @@ function AuthenticatedApp() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/inbox" element={<InboxPage />} />
+        <Route path="/bookings" element={<BookingsPage />} />
         <Route path="/bookings/:id" element={<BookingDetailPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/action-queue" element={<ActionQueuePage />} />
@@ -91,6 +94,7 @@ function AuthenticatedApp() {
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/marketing" element={<MarketingPage />} />
         <Route path="/integrations" element={<IntegrationsPage />} />
+        <Route path="/email-classifications" element={<EmailClassificationsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
@@ -102,6 +106,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/book" element={<PublicBookingPage />} />
+      <Route path="/embed" element={<PublicBookingPage />} />
       <Route path="/*" element={<AuthenticatedApp />} />
     </Routes>
   );

@@ -130,9 +130,9 @@ export function InboxPage() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="mb-8 flex items-end justify-between">
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Inbox</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">Inbox</h1>
           <p className="mt-1 text-sm text-gray-500">
             {pagination ? `${pagination.total} booking${pagination.total !== 1 ? 's' : ''}` : 'Loading...'}
             {pendingCount > 0 && (
@@ -143,7 +143,7 @@ export function InboxPage() {
             )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <select
             className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm"
             value={filters.status}
@@ -329,15 +329,15 @@ export function InboxPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2.5">
-                  <span className="text-[11px] text-gray-400">{timeAgo(booking.created_at)}</span>
+                  <span className="hidden sm:inline text-[11px] text-gray-400">{timeAgo(booking.created_at)}</span>
                   {booking.total_price != null && (
-                    <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                    <span className="hidden sm:inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
                       {booking.currency === 'GBP' ? '\u00A3' : booking.currency ?? '\u00A3'}{booking.total_price.toFixed(0)}
                     </span>
                   )}
                   {booking.room_name && (
                     <span
-                      className="rounded-md px-2 py-0.5 text-[11px] font-medium text-white"
+                      className="hidden md:inline-flex rounded-md px-2 py-0.5 text-[11px] font-medium text-white"
                       style={{ backgroundColor: booking.room_color ?? '#6B7280' }}
                     >
                       {booking.room_name}

@@ -40,7 +40,7 @@ export default {
       const platform = await identifyPlatform(senderDomain, env);
 
       if (!platform) {
-        console.log(`Unknown sender domain: ${senderDomain} from ${from}. Archiving but not parsing.`);
+        console.log(`Unknown sender domain: ${senderDomain}. Archiving but not parsing.`);
       }
 
       // 2. Deduplication check via KV
@@ -84,7 +84,7 @@ export default {
         console.log(`Enqueued email from ${platform} for parsing: ${r2Key}`);
       }
     } catch (error) {
-      console.error(`Error processing email from ${from}:`, error);
+      console.error('Error processing email:', error instanceof Error ? error.message : 'Unknown error');
 
       // Attempt to archive even on error
       try {

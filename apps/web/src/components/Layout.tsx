@@ -1,4 +1,5 @@
-import { NavLink, useNavigate } from 'react-router';
+import { useState, useEffect } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../context/auth.tsx';
 import { useWebSocket } from '../context/websocket.tsx';
 import type { ReactNode } from 'react';
@@ -6,6 +7,7 @@ import type { ReactNode } from 'react';
 const bookingNav = [
   { to: '/dashboard', label: 'Dashboard', icon: DashboardIcon },
   { to: '/inbox', label: 'Inbox', icon: InboxIcon },
+  { to: '/bookings', label: 'Bookings', icon: BookingsListIcon },
   { to: '/calendar', label: 'Calendar', icon: CalendarIcon },
   { to: '/action-queue', label: 'Action Queue', icon: ClipboardIcon },
   { to: '/analytics', label: 'Analytics', icon: ChartIcon },
@@ -34,6 +36,7 @@ const systemNav = [
   { to: '/automation', label: 'Automation', icon: AutomationIcon },
   { to: '/marketing', label: 'Marketing', icon: MarketingIcon },
   { to: '/integrations', label: 'Integrations', icon: IntegrationsIcon },
+  { to: '/email-classifications', label: 'Email Triage', icon: EmailTriageIcon },
   { to: '/notifications', label: 'Notifications', icon: BellIcon },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
@@ -46,163 +49,195 @@ export function Layout({ children }: { children: ReactNode }) {
   const { staff } = useAuth();
   const { connected } = useWebSocket();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Derive page title from current path for mobile top bar
+  const currentLabel = (() => {
+    const allNav = [...bookingNav, ...crmNav, ...managementNav, ...systemNav];
+    const match = allNav.find((n) => location.pathname.startsWith(n.to));
+    return match?.label ?? 'StudioFlow360';
+  })();
+
+  const sidebarContent = (
+    <>
+      {/* Logo */}
+      <div className="shrink-0 px-5 py-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-[15px] font-semibold tracking-tight text-white">StudioFlow360</h1>
+            <p className="text-[11px] text-slate-400">Booking Management</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+        <NavSection label="Bookings" items={bookingNav} />
+        <NavSection label="CRM" items={crmNav} />
+        <NavSection label="Management" items={managementNav} />
+        <NavSection label="System" items={systemNav} />
+      </nav>
+
+      {/* Connection status */}
+      <div className="mx-3 mb-3 shrink-0 rounded-lg bg-white/5 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            {connected && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />}
+            <span className={`relative inline-flex h-2 w-2 rounded-full ${connected ? 'bg-green-400' : 'bg-slate-500'}`} />
+          </span>
+          <span className="text-[11px] text-slate-400">
+            {connected ? 'Live updates active' : 'Reconnecting...'}
+          </span>
+        </div>
+      </div>
+
+      {/* User info */}
+      <div className="shrink-0 border-t border-white/10 px-4 py-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/profile')}
+            className="shrink-0 transition-transform hover:scale-105"
+            title="View profile"
+          >
+            {staff?.avatar_url ? (
+              <img src={staff.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover ring-2 ring-white/20" />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white ring-2 ring-white/20">
+                {staff ? getInitials(staff.displayName) : '?'}
+              </div>
+            )}
+          </button>
+          <button
+            onClick={() => navigate('/profile')}
+            className="min-w-0 flex-1 text-left"
+            title="View profile"
+          >
+            <p className="truncate text-sm font-medium text-white">{staff?.displayName}</p>
+            <p className="text-[11px] capitalize text-slate-400">{staff?.job_title ?? staff?.role}</p>
+          </button>
+          <button
+            onClick={() => {
+              window.location.href = '/cdn-cgi/access/logout';
+            }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+            title="Log out"
+          >
+            <LogoutIcon />
+          </button>
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <aside className="flex w-[260px] flex-col border-r border-slate-800/50" style={{ background: 'var(--sidebar-bg)' }}>
-        {/* Logo */}
-        <div className="px-5 py-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25">
-              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-[15px] font-semibold tracking-tight text-white">StudioFlow360</h1>
-              <p className="text-[11px] text-slate-400">Booking Management</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-2">
-          <p className="mb-2 px-3 text-[11px] font-medium uppercase tracking-wider text-slate-500">Bookings</p>
-          <div className="space-y-0.5">
-            {bookingNav.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ${
-                    isActive
-                      ? 'bg-blue-600/20 text-blue-400'
-                      : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-                  }`
-                }
-              >
-                <Icon />
-                {label}
-              </NavLink>
-            ))}
-          </div>
-          <p className="mb-2 mt-4 px-3 text-[11px] font-medium uppercase tracking-wider text-slate-500">CRM</p>
-          <div className="space-y-0.5">
-            {crmNav.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ${
-                    isActive
-                      ? 'bg-blue-600/20 text-blue-400'
-                      : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-                  }`
-                }
-              >
-                <Icon />
-                {label}
-              </NavLink>
-            ))}
-          </div>
-          <p className="mb-2 mt-4 px-3 text-[11px] font-medium uppercase tracking-wider text-slate-500">Management</p>
-          <div className="space-y-0.5">
-            {managementNav.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ${
-                    isActive
-                      ? 'bg-blue-600/20 text-blue-400'
-                      : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-                  }`
-                }
-              >
-                <Icon />
-                {label}
-              </NavLink>
-            ))}
-          </div>
-          <p className="mb-2 mt-4 px-3 text-[11px] font-medium uppercase tracking-wider text-slate-500">System</p>
-          <div className="space-y-0.5">
-            {systemNav.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ${
-                    isActive
-                      ? 'bg-blue-600/20 text-blue-400'
-                      : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-                  }`
-                }
-              >
-                <Icon />
-                {label}
-              </NavLink>
-            ))}
-          </div>
-        </nav>
-
-        {/* Connection status */}
-        <div className="mx-3 mb-3 rounded-lg bg-white/5 px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              {connected && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />}
-              <span className={`relative inline-flex h-2 w-2 rounded-full ${connected ? 'bg-green-400' : 'bg-slate-500'}`} />
-            </span>
-            <span className="text-[11px] text-slate-400">
-              {connected ? 'Live updates active' : 'Reconnecting...'}
-            </span>
-          </div>
-        </div>
-
-        {/* User info */}
-        <div className="border-t border-white/10 px-4 py-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/profile')}
-              className="shrink-0 transition-transform hover:scale-105"
-              title="View profile"
-            >
-              {staff?.avatar_url ? (
-                <img src={staff.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover ring-2 ring-white/20" />
-              ) : (
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white ring-2 ring-white/20">
-                  {staff ? getInitials(staff.displayName) : '?'}
-                </div>
-              )}
-            </button>
-            <button
-              onClick={() => navigate('/profile')}
-              className="min-w-0 flex-1 text-left"
-              title="View profile"
-            >
-              <p className="truncate text-sm font-medium text-white">{staff?.displayName}</p>
-              <p className="text-[11px] capitalize text-slate-400">{staff?.job_title ?? staff?.role}</p>
-            </button>
-            <button
-              onClick={() => {
-                window.location.href = '/cdn-cgi/access/logout';
-              }}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
-              title="Log out"
-            >
-              <LogoutIcon />
-            </button>
-          </div>
-        </div>
+      {/* Desktop sidebar - always visible at lg+ */}
+      <aside
+        className="hidden lg:flex w-[260px] shrink-0 flex-col border-r border-slate-800/50"
+        style={{ background: 'var(--sidebar-bg)' }}
+      >
+        {sidebarContent}
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto bg-gray-50/80">
-        <div className="mx-auto max-w-[1400px] px-8 py-6">
-          {children}
+      {/* Mobile sidebar overlay */}
+      <div
+        className={`fixed inset-0 z-40 lg:hidden transition-opacity duration-300 ${
+          sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/50"
+          onClick={() => setSidebarOpen(false)}
+        />
+        {/* Slide-out sidebar */}
+        <aside
+          className={`absolute inset-y-0 left-0 flex w-[280px] flex-col border-r border-slate-800/50 transition-transform duration-300 ease-in-out ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+          style={{ background: 'var(--sidebar-bg)' }}
+        >
+          {/* Close button */}
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="absolute right-3 top-5 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Close menu"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          {sidebarContent}
+        </aside>
+      </div>
+
+      {/* Main content area */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Mobile top bar - visible below lg */}
+        <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 lg:hidden">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-100"
+            aria-label="Open menu"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+          </button>
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600">
+            <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+            </svg>
+          </div>
+          <span className="text-sm font-semibold text-gray-900">{currentLabel}</span>
         </div>
-      </main>
+
+        {/* Main content */}
+        <main className="flex-1 overflow-auto bg-gray-50/80">
+          <div className="mx-auto max-w-[1400px] px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
+  );
+}
+
+// Reusable nav section to reduce repetition
+function NavSection({ label, items }: { label: string; items: typeof bookingNav }) {
+  return (
+    <>
+      <p className="mb-2 mt-4 first:mt-0 px-3 text-[11px] font-medium uppercase tracking-wider text-slate-500">{label}</p>
+      <div className="space-y-0.5">
+        {items.map(({ to, label: navLabel, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ${
+                isActive
+                  ? 'bg-blue-600/20 text-blue-400'
+                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+              }`
+            }
+          >
+            <Icon />
+            {navLabel}
+          </NavLink>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -251,6 +286,14 @@ function WrenchIcon() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17l-5.1 5.1a2.121 2.121 0 01-3-3l5.1-5.1m0 0L3.34 8.09A2.25 2.25 0 013 6.97V3.75a.75.75 0 01.75-.75h3.22c.417 0 .818.165 1.114.462l4.08 4.08a2.25 2.25 0 010 3.182l-1.744 1.745zM14.12 9.88l5.16-5.16a2.121 2.121 0 113 3l-5.16 5.16" />
+    </svg>
+  );
+}
+
+function BookingsListIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
     </svg>
   );
 }
@@ -388,6 +431,14 @@ function IntegrationsIcon() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-9.86a4.5 4.5 0 00-6.364 0l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+    </svg>
+  );
+}
+
+function EmailTriageIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
     </svg>
   );
 }

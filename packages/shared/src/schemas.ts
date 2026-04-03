@@ -51,6 +51,7 @@ export const UpdateRoomSchema = CreateRoomSchema.partial().extend({
 export const DirectBookingSchema = z.object({
   guest_name: z.string().min(1).max(200),
   guest_email: z.string().email(),
+  guest_phone: z.string().max(30).optional(),
   booking_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   start_time: z.string().regex(/^\d{2}:\d{2}$/),
   end_time: z.string().regex(/^\d{2}:\d{2}$/),

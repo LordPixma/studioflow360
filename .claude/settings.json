@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /d/studioflow360 -type f \\\\\\( -name \"*.ts\" -o -name \"*.toml\" \\\\\\) -exec grep -l \"microsoft\\\\|graph\\\\|outlook\\\\|exchange\\\\|calendar\" {} \\\\;)",
+      "Bash(grep -E \"\\\\.sql$\")",
+      "Bash(\"C:/Users/sodekunle/AppData/Roaming/npm/pnpm\" run:*)",
+      "WebFetch(domain:developers.acuityscheduling.com)"
+    ]
+  }
+}
