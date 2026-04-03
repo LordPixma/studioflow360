@@ -7,7 +7,10 @@ interface PublicRoom {
   description: string | null;
   capacity: number;
   hourly_rate: number;
+  evening_hourly_rate: number | null;
+  evening_start_hour: number;
   color_hex: string;
+  image_url: string | null;
 }
 
 interface TimeSlot {
@@ -163,8 +166,31 @@ export function PublicBookingPage() {
     return ((eh! * 60 + em!) - (sh! * 60 + sm!)) / 60;
   };
 
-  const estimatedCost = (): number => {
-    return durationHours() * (selectedRoom?.hourly_rate ?? 0);
+  const estimatedCost = (): { total: number; dayHours: number; eveningHours: number; dayRate: number; eveningRate: number } => {
+    if (!selectedRoom || !selectedStart || !selectedEnd) return { total: 0, dayHours: 0, eveningHours: 0, dayRate: 0, eveningRate: 0 };
+
+    const [sh, sm] = selectedStart.split(':').map(Number);
+    const [eh, em] = selectedEnd.split(':').map(Number);
+    const startMin = sh! * 60 + sm!;
+    const endMin = eh! * 60 + em!;
+    const eveningMin = selectedRoom.evening_start_hour * 60;
+    const dayRate = selectedRoom.hourly_rate;
+    const eveningRate = selectedRoom.evening_hourly_rate ?? dayRate;
+
+    if (!selectedRoom.evening_hourly_rate || endMin <= eveningMin) {
+      // Entirely day rate
+      const hours = (endMin - startMin) / 60;
+      return { total: hours * dayRate, dayHours: hours, eveningHours: 0, dayRate, eveningRate };
+    }
+    if (startMin >= eveningMin) {
+      // Entirely evening rate
+      const hours = (endMin - startMin) / 60;
+      return { total: hours * eveningRate, dayHours: 0, eveningHours: hours, dayRate, eveningRate };
+    }
+    // Split across day and evening
+    const dayHours = (eveningMin - startMin) / 60;
+    const eveningHours = (endMin - eveningMin) / 60;
+    return { total: dayHours * dayRate + eveningHours * eveningRate, dayHours, eveningHours, dayRate, eveningRate };
   };
 
   const submitBooking = async () => {
@@ -291,31 +317,52 @@ export function PublicBookingPage() {
               {rooms.map(room => (
                 <button
                   key={room.id}
-                  className="group rounded-xl border-2 border-gray-200 bg-white p-5 text-left transition-all hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/10"
+                  className="group overflow-hidden rounded-xl border-2 border-gray-200 bg-white text-left transition-all hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/10"
                   onClick={() => { setSelectedRoom(room); setStep(2); }}
                 >
-                  <div className="mb-3 flex items-start justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-10 w-10 rounded-lg" style={{ backgroundColor: room.color_hex + '20', border: `2px solid ${room.color_hex}` }}>
-                        <div className="flex h-full items-center justify-center">
-                          <svg className="h-5 w-5" style={{ color: room.color_hex }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
-                          </svg>
-                        </div>
+                  {/* Room image */}
+                  {room.image_url ? (
+                    <div className="relative h-40 w-full overflow-hidden bg-gray-100">
+                      <img src={room.image_url} alt={room.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                      <div className="absolute bottom-3 right-3">
+                        <svg className="h-5 w-5 text-white/80 transition-colors group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                        </svg>
                       </div>
-                      <h3 className="text-base font-bold text-gray-900">{room.name}</h3>
                     </div>
-                    <svg className="h-5 w-5 text-gray-300 transition-colors group-hover:text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                    </svg>
-                  </div>
-                  {room.description && <p className="mb-3 text-sm text-gray-500 line-clamp-2">{room.description}</p>}
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="flex items-center gap-1 text-gray-500">
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
-                      Up to {room.capacity}
-                    </span>
-                    <span className="font-bold text-gray-900">{'\u00A3'}{room.hourly_rate}/hr</span>
+                  ) : (
+                    <div className="flex h-32 w-full items-center justify-center" style={{ backgroundColor: room.color_hex + '15' }}>
+                      <svg className="h-10 w-10" style={{ color: room.color_hex + '60' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="p-5">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: room.color_hex }} />
+                        <h3 className="text-base font-bold text-gray-900">{room.name}</h3>
+                      </div>
+                      {!room.image_url && (
+                        <svg className="h-5 w-5 text-gray-300 transition-colors group-hover:text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                        </svg>
+                      )}
+                    </div>
+                    {room.description && <p className="mb-3 text-sm text-gray-500 line-clamp-2">{room.description}</p>}
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="flex items-center gap-1 text-gray-500">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
+                        Up to {room.capacity}
+                      </span>
+                      <div className="text-right">
+                        <span className="font-bold text-gray-900">{'\u00A3'}{room.hourly_rate}/hr</span>
+                        {room.evening_hourly_rate != null && (
+                          <span className="ml-1 text-xs text-gray-400">/ {'\u00A3'}{room.evening_hourly_rate} eve</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </button>
               ))}
@@ -338,10 +385,20 @@ export function PublicBookingPage() {
             </button>
 
             <div className="mb-4 flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
-              <div className="h-8 w-8 rounded-lg" style={{ backgroundColor: selectedRoom.color_hex + '20', border: `2px solid ${selectedRoom.color_hex}` }} />
+              {selectedRoom.image_url ? (
+                <img src={selectedRoom.image_url} alt={selectedRoom.name} className="h-10 w-14 shrink-0 rounded-lg object-cover" />
+              ) : (
+                <div className="h-10 w-10 shrink-0 rounded-lg" style={{ backgroundColor: selectedRoom.color_hex + '20', border: `2px solid ${selectedRoom.color_hex}` }} />
+              )}
               <div>
                 <p className="text-sm font-bold text-gray-900">{selectedRoom.name}</p>
-                <p className="text-xs text-gray-500">{'\u00A3'}{selectedRoom.hourly_rate}/hr &middot; Up to {selectedRoom.capacity} guests</p>
+                <p className="text-xs text-gray-500">
+                  {'\u00A3'}{selectedRoom.hourly_rate}/hr
+                  {selectedRoom.evening_hourly_rate != null && (
+                    <span> &middot; {'\u00A3'}{selectedRoom.evening_hourly_rate}/hr from {String(selectedRoom.evening_start_hour).padStart(2, '0')}:00</span>
+                  )}
+                  {' '}&middot; Up to {selectedRoom.capacity} guests
+                </p>
               </div>
             </div>
 
@@ -383,6 +440,9 @@ export function PublicBookingPage() {
                   {(availability?.slots ?? []).map((slot) => {
                     const inSelection = isInSelection(slot.time);
                     const isStart = slot.time === selectedStart;
+                    const eveningHour = selectedRoom.evening_start_hour;
+                    const slotHour = parseInt(slot.time.split(':')[0]!, 10);
+                    const isEvening = selectedRoom.evening_hourly_rate != null && slotHour >= eveningHour;
                     return (
                       <button
                         key={slot.time}
@@ -394,7 +454,9 @@ export function PublicBookingPage() {
                               ? isStart
                                 ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
                                 : 'bg-blue-100 text-blue-700'
-                              : 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-blue-50 hover:ring-blue-300'
+                              : isEvening
+                                ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100 hover:ring-indigo-300'
+                                : 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-blue-50 hover:ring-blue-300'
                         }`}
                         onClick={() => handleSlotClick(slot.time, slot.available)}
                       >
@@ -405,27 +467,39 @@ export function PublicBookingPage() {
                 </div>
 
                 {/* Selection summary */}
-                {selectedStart && (
-                  <div className="mt-4 rounded-xl bg-blue-50 p-4">
-                    <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <span className="text-gray-600">{formatDate(selectedDate)}: </span>
-                        <span className="font-bold text-gray-900">
-                          {selectedStart}{selectedEnd ? ` - ${selectedEnd}` : ' (select end time)'}
-                        </span>
+                {selectedStart && (() => {
+                  const cost = estimatedCost();
+                  return (
+                    <div className="mt-4 rounded-xl bg-blue-50 p-4">
+                      <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <span className="text-gray-600">{formatDate(selectedDate)}: </span>
+                          <span className="font-bold text-gray-900">
+                            {selectedStart}{selectedEnd ? ` - ${selectedEnd}` : ' (select end time)'}
+                          </span>
+                          {selectedEnd && (
+                            <span className="ml-2 text-gray-500">({durationHours()}h)</span>
+                          )}
+                        </div>
                         {selectedEnd && (
-                          <span className="ml-2 text-gray-500">({durationHours()}h)</span>
+                          <span className="text-lg font-bold text-gray-900">{'\u00A3'}{cost.total.toFixed(0)}</span>
                         )}
                       </div>
-                      {selectedEnd && (
-                        <span className="text-lg font-bold text-gray-900">{'\u00A3'}{estimatedCost().toFixed(0)}</span>
+                      {selectedEnd && cost.dayHours > 0 && cost.eveningHours > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
+                          <span>{cost.dayHours}h daytime @ {'\u00A3'}{cost.dayRate}/hr</span>
+                          <span>{cost.eveningHours}h evening @ {'\u00A3'}{cost.eveningRate}/hr</span>
+                        </div>
                       )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
-                <div className="mt-4 flex items-center gap-3 text-[11px] text-gray-400">
-                  <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-white ring-1 ring-gray-200" /> Available</span>
+                <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] text-gray-400">
+                  <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-white ring-1 ring-gray-200" /> Day rate</span>
+                  {selectedRoom.evening_hourly_rate != null && (
+                    <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-indigo-50 ring-1 ring-indigo-200" /> Evening rate</span>
+                  )}
                   <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-blue-600" /> Selected</span>
                   <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-gray-100" /> Booked</span>
                 </div>
@@ -463,7 +537,7 @@ export function PublicBookingPage() {
                     {formatDate(selectedDate)} &middot; {selectedStart} - {selectedEnd} &middot; {durationHours()}h
                   </p>
                 </div>
-                <p className="text-lg font-bold text-gray-900">{'\u00A3'}{estimatedCost().toFixed(0)}</p>
+                <p className="text-lg font-bold text-gray-900">{'\u00A3'}{estimatedCost().total.toFixed(0)}</p>
               </div>
             </div>
 
@@ -546,7 +620,7 @@ export function PublicBookingPage() {
                     Submitting...
                   </span>
                 ) : (
-                  `Request Booking - \u00A3${estimatedCost().toFixed(0)}`
+                  `Request Booking - \u00A3${estimatedCost().total.toFixed(0)}`
                 )}
               </button>
 
@@ -591,7 +665,7 @@ export function PublicBookingPage() {
                   </div>
                   <div className="flex justify-between border-t pt-2">
                     <span className="text-gray-500">Estimated Cost</span>
-                    <span className="text-lg font-bold text-gray-900">{'\u00A3'}{estimatedCost().toFixed(0)}</span>
+                    <span className="text-lg font-bold text-gray-900">{'\u00A3'}{estimatedCost().total.toFixed(0)}</span>
                   </div>
                 </div>
                 {bookingId && (

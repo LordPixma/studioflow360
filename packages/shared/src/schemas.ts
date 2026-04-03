@@ -41,6 +41,8 @@ export const CreateRoomSchema = z.object({
   description: z.string().max(500).optional(),
   capacity: z.number().int().positive(),
   hourly_rate: z.number().nonnegative(),
+  evening_hourly_rate: z.number().nonnegative().nullable().optional(),
+  evening_start_hour: z.number().int().min(0).max(23).optional(),
   color_hex: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
 });
 
@@ -58,7 +60,7 @@ export const DirectBookingSchema = z.object({
   guest_count: z.number().int().positive().optional(),
   notes: z.string().max(2000).optional(),
   room_id: z.string().uuid().optional(),
-  turnstile_token: z.string().min(1),
+  turnstile_token: z.string().optional(),
 });
 
 export const StaffBookingSchema = z.object({

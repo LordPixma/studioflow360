@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { api } from '../lib/api.ts';
 import { useAuth, usePermission } from '../context/auth.tsx';
 import { useToast } from '../components/Toast.tsx';
@@ -9,6 +9,8 @@ type EditingRoom = {
   description: string;
   capacity: number;
   hourly_rate: number;
+  evening_hourly_rate: number | null;
+  evening_start_hour: number;
   color_hex: string;
 };
 
@@ -35,6 +37,8 @@ export function SettingsPage() {
     description: '',
     capacity: 10,
     hourly_rate: 50,
+    evening_hourly_rate: '' as string | number,
+    evening_start_hour: 18,
     color_hex: '#3B82F6',
   });
   const [newStaff, setNewStaff] = useState({
@@ -127,11 +131,15 @@ export function SettingsPage() {
   // --- Room handlers ---
   const addRoom = async () => {
     if (!newRoom.name.trim()) return;
-    const res = await api.post('/rooms', newRoom);
+    const payload = {
+      ...newRoom,
+      evening_hourly_rate: newRoom.evening_hourly_rate !== '' ? Number(newRoom.evening_hourly_rate) : null,
+    };
+    const res = await api.post('/rooms', payload);
     if (res.success) {
       toast('Room created', 'success');
       setShowAddRoom(false);
-      setNewRoom({ name: '', description: '', capacity: 10, hourly_rate: 50, color_hex: '#3B82F6' });
+      setNewRoom({ name: '', description: '', capacity: 10, hourly_rate: 50, evening_hourly_rate: '', evening_start_hour: 18, color_hex: '#3B82F6' });
       fetchRooms();
     } else {
       toast(res.error?.message ?? 'Failed to create room', 'error');
@@ -140,7 +148,7 @@ export function SettingsPage() {
 
   const startEdit = (room: RoomRow) => {
     setEditingId(room.id);
-    setEditForm({ name: room.name, description: room.description ?? '', capacity: room.capacity, hourly_rate: room.hourly_rate, color_hex: room.color_hex });
+    setEditForm({ name: room.name, description: room.description ?? '', capacity: room.capacity, hourly_rate: room.hourly_rate, evening_hourly_rate: room.evening_hourly_rate, evening_start_hour: room.evening_start_hour ?? 18, color_hex: room.color_hex });
   };
   const cancelEdit = () => { setEditingId(null); setEditForm(null); };
 
@@ -162,6 +170,31 @@ export function SettingsPage() {
     const res = await api.delete(`/rooms/${room.id}`);
     if (res.success) { toast('Room deleted', 'success'); fetchRooms(); }
     else { toast(res.error?.message ?? 'Failed to delete room', 'error'); }
+  };
+
+  // --- Room image handler ---
+  const uploadRoomImage = async (roomId: string, e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast('Please select an image file', 'error'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast('Image must be under 5MB', 'error'); return; }
+    const formData = new FormData();
+    formData.append('image', file);
+    const res = await fetch(`/api/rooms/${roomId}/image`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    const data = await res.json() as { success: boolean; error?: { message: string } };
+    if (data.success) { toast('Room image updated', 'success'); fetchRooms(); }
+    else { toast(data.error?.message ?? 'Failed to upload image', 'error'); }
+    e.target.value = '';
+  };
+
+  const removeRoomImage = async (roomId: string) => {
+    const res = await api.delete(`/rooms/${roomId}/image`);
+    if (res.success) { toast('Image removed', 'success'); fetchRooms(); }
+    else { toast(res.error?.message ?? 'Failed to remove image', 'error'); }
   };
 
   // --- Staff handlers ---
@@ -382,8 +415,20 @@ export function SettingsPage() {
                   <input className={inputCls} type="number" value={newRoom.capacity} onChange={(e) => setNewRoom(r => ({ ...r, capacity: Number(e.target.value) }))} />
                 </div>
                 <div>
-                  <label className={labelCls}>Hourly Rate</label>
+                  <label className={labelCls}>Day Rate (/hr)</label>
                   <input className={inputCls} type="number" step="0.01" value={newRoom.hourly_rate} onChange={(e) => setNewRoom(r => ({ ...r, hourly_rate: Number(e.target.value) }))} />
+                </div>
+                <div>
+                  <label className={labelCls}>Evening Rate (/hr)</label>
+                  <input className={inputCls} type="number" step="0.01" placeholder="Same as day" value={newRoom.evening_hourly_rate} onChange={(e) => setNewRoom(r => ({ ...r, evening_hourly_rate: e.target.value === '' ? '' : Number(e.target.value) }))} />
+                </div>
+                <div>
+                  <label className={labelCls}>Evening From</label>
+                  <select className={inputCls} value={newRoom.evening_start_hour} onChange={(e) => setNewRoom(r => ({ ...r, evening_start_hour: Number(e.target.value) }))}>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className={labelCls}>Color</label>
@@ -411,6 +456,7 @@ export function SettingsPage() {
                 <thead>
                   <tr className="border-b border-gray-100">
                     <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">Room</th>
+                    <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">Image</th>
                     <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">Capacity</th>
                     <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">Rate</th>
                     <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">Status</th>
@@ -429,10 +475,23 @@ export function SettingsPage() {
                             </div>
                           </td>
                           <td className="py-3">
+                            <label className="flex h-10 w-14 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500">
+                              {room.image_r2_key ? (
+                                <img src={`/api/rooms/${room.id}/image`} alt="" className="h-10 w-14 rounded-lg object-cover" />
+                              ) : (
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 003.75 21z" /></svg>
+                              )}
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadRoomImage(room.id, e)} />
+                            </label>
+                          </td>
+                          <td className="py-3">
                             <input className="w-16 rounded-lg border border-gray-200 px-2 py-1.5 text-sm" type="number" value={editForm.capacity} onChange={(e) => setEditForm(f => f && ({ ...f, capacity: Number(e.target.value) }))} />
                           </td>
                           <td className="py-3">
-                            <input className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm" type="number" step="0.01" value={editForm.hourly_rate} onChange={(e) => setEditForm(f => f && ({ ...f, hourly_rate: Number(e.target.value) }))} />
+                            <div className="space-y-1">
+                              <input className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm" type="number" step="0.01" placeholder="Day" value={editForm.hourly_rate} onChange={(e) => setEditForm(f => f && ({ ...f, hourly_rate: Number(e.target.value) }))} />
+                              <input className="w-20 rounded-lg border border-indigo-200 px-2 py-1.5 text-sm text-indigo-700" type="number" step="0.01" placeholder="Eve" value={editForm.evening_hourly_rate ?? ''} onChange={(e) => setEditForm(f => f && ({ ...f, evening_hourly_rate: e.target.value === '' ? null : Number(e.target.value) }))} />
+                            </div>
                           </td>
                           <td className="py-3"><span className="text-xs text-gray-400">{'\u2014'}</span></td>
                           <td className="py-3 text-right">
@@ -453,8 +512,36 @@ export function SettingsPage() {
                               </div>
                             </div>
                           </td>
+                          <td className="py-3.5">
+                            <div className="flex items-center gap-2">
+                              {room.image_r2_key ? (
+                                <div className="group relative">
+                                  <img src={`/api/rooms/${room.id}/image`} alt={room.name} className="h-10 w-14 rounded-lg object-cover ring-1 ring-gray-200" />
+                                  {canManageRooms && (
+                                    <button
+                                      onClick={() => removeRoomImage(room.id)}
+                                      className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] text-white group-hover:flex"
+                                      title="Remove image"
+                                    >&times;</button>
+                                  )}
+                                </div>
+                              ) : canManageRooms ? (
+                                <label className="flex h-10 w-14 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-gray-400 transition-colors hover:border-blue-400 hover:text-blue-500">
+                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 003.75 21z" /></svg>
+                                  <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadRoomImage(room.id, e)} />
+                                </label>
+                              ) : (
+                                <span className="text-xs text-gray-300">No image</span>
+                              )}
+                            </div>
+                          </td>
                           <td className="py-3.5 text-gray-600">{room.capacity} people</td>
-                          <td className="py-3.5 font-medium text-gray-900">{'\u00A3'}{room.hourly_rate.toFixed(2)}/hr</td>
+                          <td className="py-3.5">
+                            <span className="font-medium text-gray-900">{'\u00A3'}{room.hourly_rate.toFixed(2)}/hr</span>
+                            {room.evening_hourly_rate != null && (
+                              <p className="text-[11px] text-indigo-600">{'\u00A3'}{room.evening_hourly_rate.toFixed(2)}/hr from {String(room.evening_start_hour ?? 18).padStart(2, '0')}:00</p>
+                            )}
+                          </td>
                           <td className="py-3.5">
                             {canManageRooms ? (
                               <button onClick={() => toggleActive(room)} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${room.active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>

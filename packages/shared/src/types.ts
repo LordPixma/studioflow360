@@ -10,6 +10,9 @@ export interface RoomRow {
   hourly_rate: number;
   color_hex: string;
   active: number; // 0 or 1
+  image_r2_key: string | null;
+  evening_hourly_rate: number | null;
+  evening_start_hour: number;
   created_at: string;
 }
 

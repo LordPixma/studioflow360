@@ -13,23 +13,25 @@ const ingest = new Hono<IngestEnv>();
 ingest.post('/', zValidator('json', DirectBookingSchema), async (c) => {
   const data = c.req.valid('json');
 
-  // Validate Turnstile token
-  const turnstileResponse = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      secret: c.env.TURNSTILE_SECRET_KEY,
-      response: data.turnstile_token,
-      remoteip: c.req.header('CF-Connecting-IP'),
-    }),
-  });
+  // Validate Turnstile token (skip if Turnstile is not configured)
+  if (c.env.TURNSTILE_SECRET_KEY) {
+    const turnstileResponse = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        secret: c.env.TURNSTILE_SECRET_KEY,
+        response: data.turnstile_token,
+        remoteip: c.req.header('CF-Connecting-IP'),
+      }),
+    });
 
-  const turnstileResult = (await turnstileResponse.json()) as { success: boolean };
-  if (!turnstileResult.success) {
-    return c.json(
-      { success: false, error: { code: 'TURNSTILE_FAILED', message: 'Bot verification failed' } },
-      403,
-    );
+    const turnstileResult = (await turnstileResponse.json()) as { success: boolean };
+    if (!turnstileResult.success) {
+      return c.json(
+        { success: false, error: { code: 'TURNSTILE_FAILED', message: 'Bot verification failed' } },
+        403,
+      );
+    }
   }
 
   // Duplicate check: same guest email + date + overlapping time

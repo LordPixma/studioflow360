@@ -78,9 +78,32 @@ app.route('/api/bookings/ingest', ingest);
 app.use('/api/public/*', publicRateLimit);
 app.get('/api/public/rooms', async (c) => {
   const rooms = await c.env.DB.prepare(
-    'SELECT id, name, description, capacity, hourly_rate, color_hex FROM rooms WHERE active = 1 ORDER BY name',
+    'SELECT id, name, description, capacity, hourly_rate, evening_hourly_rate, evening_start_hour, color_hex, image_r2_key FROM rooms WHERE active = 1 ORDER BY name',
   ).all();
-  return c.json({ success: true, data: rooms.results });
+  // Add image_url field for rooms that have images
+  const data = rooms.results.map((r) => {
+    const room = r as Record<string, unknown>;
+    return { ...room, image_url: room.image_r2_key ? `/api/public/rooms/${room.id}/image` : null };
+  });
+  return c.json({ success: true, data });
+});
+
+// Public route: serve room image
+app.get('/api/public/rooms/:id/image', async (c) => {
+  const id = c.req.param('id');
+  const room = await c.env.DB.prepare('SELECT image_r2_key FROM rooms WHERE id = ? AND active = 1')
+    .bind(id).first<{ image_r2_key: string | null }>();
+  if (!room?.image_r2_key) {
+    return new Response(null, { status: 404 });
+  }
+  const object = await c.env.AVATARS.get(room.image_r2_key);
+  if (!object) {
+    return new Response(null, { status: 404 });
+  }
+  const headers = new Headers();
+  headers.set('Content-Type', object.httpMetadata?.contentType ?? 'image/jpeg');
+  headers.set('Cache-Control', 'public, max-age=86400');
+  return new Response(object.body, { headers });
 });
 
 // Public route: room availability — returns booked slots AND computed open time slots
