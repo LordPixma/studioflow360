@@ -335,6 +335,20 @@ export function BookingDetailPage() {
                   ) : '\u2014'}
                 </dd>
               </div>
+              <div>
+                <dt className="text-xs text-gray-400">Payment</dt>
+                <dd className="mt-0.5">
+                  {(() => {
+                    const ps = (booking as unknown as Record<string, unknown>).payment_status as string | null;
+                    if (!ps || ps === 'unpaid') return <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600"><span className="h-1.5 w-1.5 rounded-full bg-gray-400" />Unpaid</span>;
+                    if (ps === 'pending') return <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" />Pending</span>;
+                    if (ps === 'paid') return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Paid{(booking as unknown as Record<string, unknown>).amount_paid != null ? ` — \u00A3${Number((booking as unknown as Record<string, unknown>).amount_paid).toFixed(2)}` : ''}</span>;
+                    if (ps === 'refunded') return <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700"><span className="h-1.5 w-1.5 rounded-full bg-purple-500" />Refunded</span>;
+                    if (ps === 'failed') return <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700"><span className="h-1.5 w-1.5 rounded-full bg-red-500" />Failed</span>;
+                    return <span className="text-sm text-gray-500">{ps}</span>;
+                  })()}
+                </dd>
+              </div>
               {booking.notes && (
                 <div className="col-span-2">
                   <dt className="text-xs text-gray-400">Guest Notes</dt>

@@ -233,6 +233,7 @@ bookings.patch('/:id/status', zValidator('json', UpdateBookingStatusSchema), asy
   const booking = await c.env.DB.prepare(
     `SELECT b.id, b.status, b.guest_name, b.guest_email, b.booking_date, b.start_time, b.end_time,
             b.guest_count, b.total_price, b.currency, b.notes, b.platform, b.platform_ref, b.calendar_event_id,
+            b.payment_status, b.stripe_checkout_session_id,
             r.name as room_name
      FROM bookings b LEFT JOIN rooms r ON b.room_id = r.id
      WHERE b.id = ?`,
@@ -244,6 +245,7 @@ bookings.patch('/:id/status', zValidator('json', UpdateBookingStatusSchema), asy
       guest_count: number | null; total_price: number | null; currency: string | null;
       notes: string | null; platform: string | null; platform_ref: string | null;
       calendar_event_id: string | null; room_name: string | null;
+      payment_status: string | null; stripe_checkout_session_id: string | null;
     }>();
 
   if (!booking) {
@@ -260,6 +262,20 @@ bookings.patch('/:id/status', zValidator('json', UpdateBookingStatusSchema), asy
         },
       },
       400,
+    );
+  }
+
+  // Payment check: block approval if a Stripe checkout was initiated but payment is not completed
+  if (newStatus === 'APPROVED' && booking.stripe_checkout_session_id && booking.payment_status !== 'paid') {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'PAYMENT_REQUIRED',
+          message: `Cannot approve: payment status is "${booking.payment_status ?? 'unpaid'}". The customer must complete payment before this booking can be approved.`,
+        },
+      },
+      402,
     );
   }
 
