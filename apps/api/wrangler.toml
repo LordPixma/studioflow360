@@ -62,6 +62,9 @@ TURNSTILE_SITE_KEY = ""
 # Acuity Scheduling webhook integration
 # Secrets (set via wrangler secret put): ACUITY_USER_ID, ACUITY_API_KEY
 
+# Stripe payment integration
+# Secrets (set via wrangler secret put): STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PUBLIC_KEY
+
 # Staging environment
 [env.staging]
 name = "studioflow360-api-staging"

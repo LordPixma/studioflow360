@@ -83,6 +83,25 @@ export function PublicBookingPage() {
 
   const availableDays = getNextDays(14);
 
+  // Handle return from Stripe
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
+    const returnBookingId = params.get('booking_id');
+    if (payment === 'success' && returnBookingId) {
+      setBookingId(returnBookingId);
+      setSuccess(true);
+      setStep(4);
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (payment === 'cancelled' && returnBookingId) {
+      setBookingId(returnBookingId);
+      setError('Payment was cancelled. Your booking has been saved but is unpaid. You can try again or contact us.');
+      setStep(3);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // Fetch rooms
   useEffect(() => {
     fetch(`${API_BASE}/public/rooms`).then(r => r.json()).then((res: { success: boolean; data?: PublicRoom[] }) => {
@@ -199,13 +218,10 @@ export function PublicBookingPage() {
       setError('Please fill in your name and email');
       return;
     }
-    if (!turnstileToken) {
-      setError('Please complete the verification');
-      return;
-    }
     setSubmitting(true);
     setError('');
     try {
+      // Step 1: Create the booking
       const res = await fetch(`${API_BASE}/bookings/ingest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -219,17 +235,52 @@ export function PublicBookingPage() {
           guest_count: form.guest_count,
           notes: form.notes.trim() || undefined,
           room_id: selectedRoom.id,
-          turnstile_token: turnstileToken,
+          turnstile_token: turnstileToken || undefined,
         }),
       });
       const data = await res.json() as { success: boolean; data?: { id: string }; error?: { message: string } };
-      if (data.success) {
-        setBookingId(data.data?.id ?? '');
-        setSuccess(true);
-        setStep(4);
-      } else {
+      if (!data.success) {
         setError(data.error?.message ?? 'Booking failed. Please try again.');
+        setSubmitting(false);
+        return;
       }
+
+      const newBookingId = data.data?.id ?? '';
+      setBookingId(newBookingId);
+
+      // Step 2: Try to create Stripe checkout session
+      const cost = estimatedCost();
+      if (cost.total > 0) {
+        try {
+          const checkoutRes = await fetch(`${API_BASE}/public/stripe/checkout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              booking_id: newBookingId,
+              guest_name: form.guest_name.trim(),
+              guest_email: form.guest_email.trim(),
+              room_name: selectedRoom.name,
+              booking_date: selectedDate,
+              start_time: selectedStart,
+              end_time: selectedEnd,
+              amount: cost.total,
+            }),
+          });
+          const checkoutData = await checkoutRes.json() as { success: boolean; data?: { checkout_url: string } };
+          if (checkoutData.success && checkoutData.data?.checkout_url) {
+            // Redirect to Stripe Checkout
+            window.location.href = checkoutData.data.checkout_url;
+            return;
+          }
+        } catch {
+          // Stripe not configured or failed — continue without payment
+          console.log('Stripe checkout not available, proceeding without payment');
+        }
+      }
+
+      // No Stripe or free booking — show confirmation directly
+      setSuccess(true);
+      setStep(4);
     } catch {
       setError('Network error. Please try again.');
     }
@@ -620,7 +671,7 @@ export function PublicBookingPage() {
                     Submitting...
                   </span>
                 ) : (
-                  `Request Booking - \u00A3${estimatedCost().total.toFixed(0)}`
+                  `Book & Pay - \u00A3${estimatedCost().total.toFixed(0)}`
                 )}
               </button>
 
@@ -639,7 +690,11 @@ export function PublicBookingPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900">Booking Request Submitted!</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {new URLSearchParams(window.location.search).get('payment') === 'success'
+                ? 'Payment Confirmed!'
+                : 'Booking Request Submitted!'}
+            </h2>
             <p className="mt-2 max-w-md text-sm text-gray-500">
               Thank you for your booking request. Our team will review it and send you a confirmation email shortly.
             </p>

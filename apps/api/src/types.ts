@@ -20,6 +20,9 @@ export interface Env {
   AZURE_MAILBOX_USER_ID: string;
   ACUITY_USER_ID: string;
   ACUITY_API_KEY: string;
+  STRIPE_SECRET_KEY: string;
+  STRIPE_WEBHOOK_SECRET: string;
+  STRIPE_PUBLIC_KEY: string;
 }
 
 export interface StaffContext {

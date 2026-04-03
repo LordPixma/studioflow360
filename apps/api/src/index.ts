@@ -32,6 +32,7 @@ import marketingRoute from './routes/marketing.js';
 import integrationsRoute from './routes/integrations.js';
 import emailClassificationsRoute from './routes/email-classifications.js';
 import acuityWebhook from './routes/webhooks-acuity.js';
+import stripeRoutes from './routes/stripe.js';
 import { ROLE_PERMISSIONS } from '@studioflow360/shared';
 import type { Env, StaffContext } from './types.js';
 
@@ -178,6 +179,10 @@ app.post('/api/internal/broadcast', async (c) => {
   await hub.fetch(new Request('https://hub/broadcast', { method: 'POST', body }));
   return c.json({ success: true });
 });
+
+// Stripe: public checkout + webhook (signature-verified)
+app.route('/api/public/stripe', stripeRoutes);
+app.route('/api/webhooks/stripe', stripeRoutes);
 
 // Acuity Scheduling webhook (public, HMAC-verified)
 app.route('/api/webhooks/acuity', acuityWebhook);
