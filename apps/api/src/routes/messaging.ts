@@ -95,6 +95,70 @@ messaging.get('/booking/:id', async (c) => {
   return c.json({ success: true, data: messages.results });
 });
 
+// GET /api/messaging/unread - Get unread inbound messages for dashboard
+messaging.get('/unread', async (c) => {
+  const results = await c.env.DB.prepare(
+    `SELECT m.id, m.booking_id, m.channel, m.from_number, m.body, m.created_at,
+            CASE WHEN m.booking_id = '__UNLINKED__' THEN NULL ELSE b.guest_name END as guest_name,
+            CASE WHEN m.booking_id = '__UNLINKED__' THEN NULL ELSE b.platform END as platform
+     FROM messages m
+     LEFT JOIN bookings b ON m.booking_id = b.id
+     WHERE m.direction = 'inbound' AND m.is_read = 0
+     ORDER BY m.created_at DESC
+     LIMIT 20`,
+  ).all();
+
+  const count = await c.env.DB.prepare(
+    `SELECT COUNT(*) as count FROM messages WHERE direction = 'inbound' AND is_read = 0`,
+  ).first<{ count: number }>();
+
+  return c.json({
+    success: true,
+    data: { messages: results.results, unread_count: count?.count ?? 0 },
+  });
+});
+
+// GET /api/messaging/recent - Get all recent inbound messages (read + unread)
+messaging.get('/recent', async (c) => {
+  const results = await c.env.DB.prepare(
+    `SELECT m.id, m.booking_id, m.channel, m.from_number, m.body, m.is_read, m.created_at,
+            CASE WHEN m.booking_id = '__UNLINKED__' THEN NULL ELSE b.guest_name END as guest_name,
+            CASE WHEN m.booking_id = '__UNLINKED__' THEN NULL ELSE b.platform END as platform
+     FROM messages m
+     LEFT JOIN bookings b ON m.booking_id = b.id
+     WHERE m.direction = 'inbound'
+     ORDER BY m.created_at DESC
+     LIMIT 50`,
+  ).all();
+
+  return c.json({ success: true, data: results.results });
+});
+
+// PATCH /api/messaging/:id/read - Mark a message as read
+messaging.patch('/:id/read', async (c) => {
+  const id = c.req.param('id');
+  const staff = c.get('staff');
+  const now = nowISO();
+
+  await c.env.DB.prepare(
+    'UPDATE messages SET is_read = 1, read_by = ?, read_at = ? WHERE id = ? AND is_read = 0',
+  ).bind(staff.id, now, id).run();
+
+  return c.json({ success: true });
+});
+
+// PATCH /api/messaging/mark-all-read - Mark all inbound messages as read
+messaging.patch('/mark-all-read', async (c) => {
+  const staff = c.get('staff');
+  const now = nowISO();
+
+  await c.env.DB.prepare(
+    'UPDATE messages SET is_read = 1, read_by = ?, read_at = ? WHERE direction = \'inbound\' AND is_read = 0',
+  ).bind(staff.id, now).run();
+
+  return c.json({ success: true });
+});
+
 // PATCH /api/bookings/:id/chat-link - Update booking's external chat link
 messaging.patch('/booking/:id/chat-link', zValidator('json', UpdateBookingChatSchema), async (c) => {
   const id = c.req.param('id');

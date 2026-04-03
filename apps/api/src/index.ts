@@ -33,6 +33,7 @@ import integrationsRoute from './routes/integrations.js';
 import emailClassificationsRoute from './routes/email-classifications.js';
 import acuityWebhook from './routes/webhooks-acuity.js';
 import stripeRoutes from './routes/stripe.js';
+import twilioWebhook from './routes/webhooks-twilio.js';
 import { ROLE_PERMISSIONS } from '@studioflow360/shared';
 import type { Env, StaffContext } from './types.js';
 
@@ -183,6 +184,9 @@ app.post('/api/internal/broadcast', async (c) => {
 // Stripe: public checkout + webhook (signature-verified)
 app.route('/api/public/stripe', stripeRoutes);
 app.route('/api/webhooks/stripe', stripeRoutes);
+
+// Twilio inbound SMS/WhatsApp webhook (public)
+app.route('/api/webhooks/twilio', twilioWebhook);
 
 // Acuity Scheduling webhook (public, HMAC-verified)
 app.route('/api/webhooks/acuity', acuityWebhook);

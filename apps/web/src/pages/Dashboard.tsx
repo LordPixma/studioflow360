@@ -6,10 +6,22 @@ import { StatusBadge } from '../components/StatusBadge.tsx';
 import { PlatformBadge } from '../components/PlatformBadge.tsx';
 import type { Platform, BookingStatus } from '@studioflow360/shared';
 
+interface DashboardMessage {
+  id: string;
+  booking_id: string;
+  channel: 'sms' | 'whatsapp';
+  from_number: string;
+  body: string;
+  is_read: number;
+  created_at: string;
+  guest_name: string | null;
+}
+
 interface DashboardData {
   today: { booking_count: number; revenue: number };
   pending_action: number;
   stale_approvals: number;
+  unread_messages: number;
   upcoming: Array<{
     id: string; guest_name: string; booking_date: string; start_time: string;
     end_time: string; status: string; platform: string; total_price: number | null;
@@ -23,6 +35,7 @@ interface DashboardData {
   room_occupancy: Array<{
     id: string; name: string; color_hex: string; booking_count: number; booked_hours: number;
   }>;
+  recent_messages: DashboardMessage[];
   studio_overdue: number;
 }
 
@@ -117,7 +130,7 @@ export function DashboardPage() {
       </div>
 
       {/* KPI Strip */}
-      <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <KpiCard label="Bookings today" value={String(data.today.booking_count)} color="blue" />
         <KpiCard
           label="Revenue today"
@@ -129,6 +142,12 @@ export function DashboardPage() {
           value={String(data.pending_action)}
           color={data.pending_action > 0 ? 'amber' : 'gray'}
           alert={data.pending_action > 0}
+        />
+        <KpiCard
+          label="Unread messages"
+          value={String(data.unread_messages)}
+          color={data.unread_messages > 0 ? 'purple' : 'gray'}
+          alert={data.unread_messages > 0}
         />
         <KpiCard
           label="Stale approvals"
@@ -244,6 +263,77 @@ export function DashboardPage() {
 
         {/* Right column */}
         <div className="space-y-5">
+          {/* Messages */}
+          <div className="rounded-2xl bg-white ring-1 ring-gray-950/[0.04] shadow-sm">
+            <div className="flex items-center justify-between px-5 py-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-gray-900">Messages</h3>
+                {data.unread_messages > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-purple-600 px-1.5 text-[10px] font-bold text-white">
+                    {data.unread_messages}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="border-t border-gray-100">
+              {data.recent_messages.length === 0 ? (
+                <div className="px-5 py-10 text-center">
+                  <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-gray-100">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-gray-500">No messages yet</p>
+                  <p className="mt-0.5 text-xs text-gray-400">Inbound SMS &amp; WhatsApp will appear here</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {data.recent_messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex items-start gap-3 px-5 py-3 transition-colors ${
+                        msg.booking_id !== '__UNLINKED__' ? 'cursor-pointer hover:bg-gray-50/80' : ''
+                      } ${!msg.is_read ? 'bg-purple-50/40' : ''}`}
+                      onClick={() => {
+                        if (msg.booking_id !== '__UNLINKED__') {
+                          window.location.href = `/bookings/${msg.booking_id}`;
+                        }
+                      }}
+                    >
+                      <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                        msg.channel === 'whatsapp' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
+                      }`}>
+                        {msg.channel === 'whatsapp' ? (
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                          </svg>
+                        ) : (
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-xs font-medium text-gray-800">
+                            {msg.guest_name ?? msg.from_number}
+                          </p>
+                          {!msg.is_read && (
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-purple-500" />
+                          )}
+                        </div>
+                        <p className="mt-0.5 truncate text-[11px] text-gray-500">{msg.body}</p>
+                      </div>
+                      <span className="shrink-0 text-[11px] tabular-nums text-gray-400">
+                        {timeAgo(msg.created_at)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Room Occupancy */}
           <div className="rounded-2xl bg-white ring-1 ring-gray-950/[0.04] shadow-sm">
             <div className="px-5 py-4">
@@ -354,6 +444,7 @@ const COLOR_MAP: Record<string, { text: string; indicator: string }> = {
   blue:    { text: 'text-gray-900', indicator: 'bg-blue-500' },
   emerald: { text: 'text-gray-900', indicator: 'bg-emerald-500' },
   amber:   { text: 'text-gray-900', indicator: 'bg-amber-500' },
+  purple:  { text: 'text-gray-900', indicator: 'bg-purple-500' },
   red:     { text: 'text-gray-900', indicator: 'bg-red-500' },
   gray:    { text: 'text-gray-400', indicator: 'bg-gray-300' },
 };

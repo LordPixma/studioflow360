@@ -12,7 +12,7 @@ dashboard.get('/', async (c) => {
   const today = new Date().toISOString().split('T')[0]!;
   const weekLater = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]!;
 
-  const [todayStats, pendingAction, staleApprovals, upcoming, recentActivity, roomOccupancy, studioOverdue] = await Promise.all([
+  const [todayStats, pendingAction, staleApprovals, upcoming, recentActivity, roomOccupancy, studioOverdue, unreadMessages, recentMessages] = await Promise.all([
     // Today's bookings + revenue
     c.env.DB.prepare(
       `SELECT COUNT(*) as count, COALESCE(SUM(total_price), 0) as revenue
@@ -69,6 +69,21 @@ dashboard.get('/', async (c) => {
       `SELECT COUNT(*) as count FROM studio_items
        WHERE due_date < ? AND status NOT IN ('completed','cancelled')`,
     ).bind(today).first<{ count: number }>(),
+
+    // Unread message count
+    c.env.DB.prepare(
+      `SELECT COUNT(*) as count FROM messages WHERE direction = 'inbound' AND is_read = 0`,
+    ).first<{ count: number }>(),
+
+    // Recent inbound messages (for dashboard widget)
+    c.env.DB.prepare(
+      `SELECT m.id, m.booking_id, m.channel, m.from_number, m.body, m.is_read, m.created_at,
+              CASE WHEN m.booking_id = '__UNLINKED__' THEN NULL ELSE b.guest_name END as guest_name
+       FROM messages m
+       LEFT JOIN bookings b ON m.booking_id = b.id
+       WHERE m.direction = 'inbound'
+       ORDER BY m.created_at DESC LIMIT 8`,
+    ).all(),
   ]);
 
   return c.json({
@@ -81,6 +96,8 @@ dashboard.get('/', async (c) => {
       recent_activity: recentActivity.results,
       room_occupancy: roomOccupancy.results,
       studio_overdue: studioOverdue?.count ?? 0,
+      unread_messages: unreadMessages?.count ?? 0,
+      recent_messages: recentMessages.results,
     },
   });
 });
